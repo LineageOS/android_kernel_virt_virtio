@@ -19,6 +19,12 @@ struct virtio_input {
 	struct virtio_input_event  evts[64];
 	spinlock_t                 lock;
 	bool                       ready;
+
+	// Translate tablet input events to multitouch
+	bool is_tablet;
+	bool tablet_is_pressed;
+	int tablet_x;
+	int tablet_y;
 };
 
 static void virtinput_queue_evtbuf(struct virtio_input *vi,
@@ -30,6 +36,81 @@ static void virtinput_queue_evtbuf(struct virtio_input *vi,
 	virtqueue_add_inbuf(vi->evt, sg, 1, evtbuf, GFP_ATOMIC);
 }
 
+static void virtinput_event_tablet_to_multitouch
+		(struct virtio_input *vi, unsigned int type, unsigned int code, int value)
+{
+	bool key_report_up = false;
+	unsigned int trans_keycode;
+
+	switch (type) {
+		case EV_KEY:
+			if (code == BTN_LEFT) {
+				vi->tablet_is_pressed = !!value;
+				goto report_mt;
+			}
+			goto report_key;
+		case EV_ABS:
+			switch (code) {
+				case ABS_X:
+					vi->tablet_x = value;
+					break;
+				case ABS_Y:
+					vi->tablet_y = value;
+					break;
+				default:
+					return;
+			}
+			goto report_mt;
+		default:
+			break;
+	}
+	return;
+
+report_key:
+	switch (code) {
+		case BTN_MIDDLE:
+			trans_keycode = KEY_BACK;
+			break;
+		case BTN_RIGHT:
+			trans_keycode = KEY_MENU;
+			break;
+		case BTN_GEAR_DOWN:
+			key_report_up = true;
+			trans_keycode = KEY_DOWN;
+			break;
+		case BTN_GEAR_UP:
+			key_report_up = true;
+			trans_keycode = KEY_UP;
+			break;
+		default:
+			return;
+	}
+	if (key_report_up) {
+		input_report_key(vi->idev, trans_keycode, 1);
+		input_sync(vi->idev);
+		input_report_key(vi->idev, trans_keycode, 0);
+	} else {
+		input_report_key(vi->idev, trans_keycode, value);
+	}
+	input_sync(vi->idev);
+	return;
+
+report_mt:
+	input_mt_slot(vi->idev, 0);
+	if (vi->tablet_is_pressed) {
+		input_mt_report_slot_state(vi->idev, MT_TOOL_FINGER, true);
+		if (type == EV_KEY || (type == EV_ABS && code == ABS_X))
+			input_report_abs(vi->idev, ABS_MT_POSITION_X, vi->tablet_x);
+		if (type == EV_KEY || (type == EV_ABS && code == ABS_Y))
+			input_report_abs(vi->idev, ABS_MT_POSITION_Y, vi->tablet_y);
+	} else {
+		input_mt_report_slot_state(vi->idev, MT_TOOL_FINGER, false);
+	}
+	input_mt_sync_frame(vi->idev);
+	input_sync(vi->idev);
+	return;
+}
+
 static void virtinput_recv_events(struct virtqueue *vq)
 {
 	struct virtio_input *vi = vq->vdev->priv;
@@ -37,14 +118,22 @@ static void virtinput_recv_events(struct virtqueue *vq)
 	unsigned long flags;
 	unsigned int len;
 
+	unsigned int type;
+	unsigned int code;
+	int value;
+
 	spin_lock_irqsave(&vi->lock, flags);
 	if (vi->ready) {
 		while ((event = virtqueue_get_buf(vi->evt, &len)) != NULL) {
 			spin_unlock_irqrestore(&vi->lock, flags);
-			input_event(vi->idev,
-				    le16_to_cpu(event->type),
-				    le16_to_cpu(event->code),
-				    le32_to_cpu(event->value));
+			type = le16_to_cpu(event->type);
+			code = le16_to_cpu(event->code);
+			value = le32_to_cpu(event->value);
+			if (vi->is_tablet) {
+				virtinput_event_tablet_to_multitouch(vi, type, code, value);
+			} else {
+				input_event(vi->idev, type, code, value);
+			}
 			spin_lock_irqsave(&vi->lock, flags);
 			virtinput_queue_evtbuf(vi, event);
 		}
@@ -172,6 +261,23 @@ static void virtinput_cfg_bits(struct virtio_input *vi, int select, int subsel,
 static void virtinput_cfg_abs(struct virtio_input *vi, int abs)
 {
 	u32 mi, ma, re, fu, fl;
+	int input_abs = abs;
+
+	if (vi->is_tablet) {
+		switch (abs) {
+			case ABS_X:
+				input_abs = ABS_MT_POSITION_X;
+				break;
+			case ABS_Y:
+				input_abs = ABS_MT_POSITION_Y;
+				break;
+			case ABS_MT_POSITION_X:
+			case ABS_MT_POSITION_Y:
+				return;
+			default:
+				break;
+		}
+	}
 
 	virtinput_cfg_select(vi, VIRTIO_INPUT_CFG_ABS_INFO, abs);
 	virtio_cread_le(vi->vdev, struct virtio_input_config, u.abs.min, &mi);
@@ -179,8 +285,8 @@ static void virtinput_cfg_abs(struct virtio_input *vi, int abs)
 	virtio_cread_le(vi->vdev, struct virtio_input_config, u.abs.res, &re);
 	virtio_cread_le(vi->vdev, struct virtio_input_config, u.abs.fuzz, &fu);
 	virtio_cread_le(vi->vdev, struct virtio_input_config, u.abs.flat, &fl);
-	input_set_abs_params(vi->idev, abs, mi, ma, fu, fl);
-	input_abs_set_res(vi->idev, abs, re);
+	input_set_abs_params(vi->idev, input_abs, mi, ma, fu, fl);
+	input_abs_set_res(vi->idev, input_abs, re);
 }
 
 static int virtinput_init_vqs(struct virtio_input *vi)
@@ -268,6 +374,8 @@ static int virtinput_probe(struct virtio_device *vdev)
 				u.ids.product, &vi->idev->id.product);
 		virtio_cread_le(vi->vdev, struct virtio_input_config,
 				u.ids.version, &vi->idev->id.version);
+		if (vi->idev->id.vendor == 0x0627 && vi->idev->id.product == 0x0003)
+			vi->is_tablet = true;
 	} else {
 		vi->idev->id.bustype = BUS_VIRTUAL;
 	}
@@ -306,12 +414,24 @@ static int virtinput_probe(struct virtio_device *vdev)
 			virtinput_cfg_abs(vi, abs);
 		}
 
-		if (test_bit(ABS_MT_SLOT, vi->idev->absbit)) {
+		if (vi->is_tablet) {
+			__clear_bit(EV_REL, vi->idev->evbit);
+			err = input_mt_init_slots(vi->idev, 2, INPUT_MT_DIRECT);
+			if (err)
+				goto err_mt_init_slots;
+		} else if (test_bit(ABS_MT_SLOT, vi->idev->absbit)) {
 			nslots = input_abs_get_max(vi->idev, ABS_MT_SLOT) + 1;
 			err = input_mt_init_slots(vi->idev, nslots, 0);
 			if (err)
 				goto err_mt_init_slots;
 		}
+	}
+
+	if (vi->is_tablet) {
+		input_set_capability(vi->idev, EV_KEY, KEY_BACK);
+		input_set_capability(vi->idev, EV_KEY, KEY_MENU);
+		input_set_capability(vi->idev, EV_KEY, KEY_DOWN);
+		input_set_capability(vi->idev, EV_KEY, KEY_UP);
 	}
 
 	virtio_device_ready(vdev);
