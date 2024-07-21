@@ -9,6 +9,8 @@
 #include <uapi/linux/virtio_input.h>
 #include <linux/input/mt.h>
 
+static const char *crosvm_ts_name = "Crosvm Virtio Multitouch Touchscreen";
+
 struct virtio_input {
 	struct virtio_device       *vdev;
 	struct input_dev           *idev;
@@ -19,6 +21,10 @@ struct virtio_input {
 	struct virtio_input_event  evts[64];
 	spinlock_t                 lock;
 	bool                       ready;
+
+	// Crosvm touchscreen workarounds
+	bool is_crosvm_ts;
+	bool crosvm_ts_last_contact_state;
 
 	// Translate tablet input events to multitouch
 	bool is_tablet;
@@ -111,6 +117,21 @@ report_mt:
 	return;
 }
 
+static void virtinput_crosvm_ts_process_input_event
+		(struct virtio_input *vi, unsigned int type, unsigned int code, int value)
+{
+	if (type == EV_ABS && code == ABS_MT_TRACKING_ID) {
+		vi->crosvm_ts_last_contact_state = (value != -1);
+	} else if (type == EV_SYN && code == SYN_REPORT) {
+		input_event(vi->idev, EV_KEY, BTN_TOUCH, vi->crosvm_ts_last_contact_state);
+		input_sync(vi->idev);
+		return;
+	}
+
+	input_event(vi->idev, type, code, value);
+	return;
+}
+
 static void virtinput_recv_events(struct virtqueue *vq)
 {
 	struct virtio_input *vi = vq->vdev->priv;
@@ -132,7 +153,11 @@ static void virtinput_recv_events(struct virtqueue *vq)
 			if (vi->is_tablet) {
 				virtinput_event_tablet_to_multitouch(vi, type, code, value);
 			} else {
-				input_event(vi->idev, type, code, value);
+				if (vi->is_crosvm_ts) {
+					virtinput_crosvm_ts_process_input_event(vi, type, code, value);
+				} else {
+					input_event(vi->idev, type, code, value);
+				}
 			}
 			spin_lock_irqsave(&vi->lock, flags);
 			virtinput_queue_evtbuf(vi, event);
@@ -363,6 +388,9 @@ static int virtinput_probe(struct virtio_device *vdev)
 	vi->idev->name = vi->name;
 	vi->idev->phys = vi->phys;
 	vi->idev->uniq = vi->serial;
+
+	if (!strncmp(vi->name, crosvm_ts_name, strlen(crosvm_ts_name)))
+		vi->is_crosvm_ts = true;
 
 	size = virtinput_cfg_select(vi, VIRTIO_INPUT_CFG_ID_DEVIDS, 0);
 	if (size >= sizeof(struct virtio_input_devids)) {
