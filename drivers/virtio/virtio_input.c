@@ -10,6 +10,7 @@
 #include <linux/input/mt.h>
 
 static const char *crosvm_ts_name = "Crosvm Virtio Multitouch Touchscreen";
+static const char *qemu_usb_tablet_name = "QEMU QEMU USB Tablet";
 
 struct virtio_input {
 	struct virtio_device       *vdev;
@@ -391,6 +392,9 @@ static int virtinput_probe(struct virtio_device *vdev)
 
 	if (!strncmp(vi->name, crosvm_ts_name, strlen(crosvm_ts_name)))
 		vi->is_crosvm_ts = true;
+
+	if (!strncmp(vi->name, qemu_usb_tablet_name, strlen(qemu_usb_tablet_name)))
+		vi->is_tablet = true;
 
 	size = virtinput_cfg_select(vi, VIRTIO_INPUT_CFG_ID_DEVIDS, 0);
 	if (size >= sizeof(struct virtio_input_devids)) {
