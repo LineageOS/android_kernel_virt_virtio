@@ -6,6 +6,12 @@
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_simple_kms_helper.h>
 
+static char *default_resolution = NULL;
+static int default_resolution_width = XRES_DEF;
+static int default_resolution_height = YRES_DEF;
+module_param(default_resolution, charp, 0600);
+MODULE_PARM_DESC(default_resolution, "Default resolution");
+
 static void vkms_connector_destroy(struct drm_connector *connector)
 {
 	drm_connector_cleanup(connector);
@@ -24,7 +30,7 @@ static int vkms_conn_get_modes(struct drm_connector *connector)
 	int count;
 
 	count = drm_add_modes_noedid(connector, XRES_MAX, YRES_MAX);
-	drm_set_preferred_mode(connector, XRES_DEF, YRES_DEF);
+	drm_set_preferred_mode(connector, default_resolution_width, default_resolution_height);
 
 	return count;
 }
@@ -59,6 +65,23 @@ int vkms_output_init(struct vkms_device *vkmsdev, int index)
 	int ret;
 	int writeback;
 	unsigned int n;
+
+	if (default_resolution != NULL) {
+		sscanf(default_resolution, "%dx%d", &default_resolution_width,
+				&default_resolution_height);
+		if (default_resolution_width >= XRES_MIN &&
+			default_resolution_height >= YRES_MIN &&
+			default_resolution_width <= XRES_MAX &&
+			default_resolution_height <= YRES_MAX) {
+			DRM_INFO("Set default resolution to %dx%d\n",
+				default_resolution_width, default_resolution_height);
+		} else {
+			DRM_ERROR("Invalid default resolution %dx%d\n",
+				default_resolution_width, default_resolution_height);
+			default_resolution_width = XRES_DEF;
+			default_resolution_height = YRES_DEF;
+		}
+	}
 
 	primary = vkms_plane_init(vkmsdev, DRM_PLANE_TYPE_PRIMARY, index);
 	if (IS_ERR(primary))
