@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9d3dc679_053724d0",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 32245
+      },
+      "writtenOn": "2024-09-26T14:35:50Z",
+      "side": 1,
+      "message": "will merge to lineage-22 branch instead, which is k6.6",
+      "revId": "0138dd46266cfea4b0f0ddec436513ff98fba574",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
