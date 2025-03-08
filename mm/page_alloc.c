@@ -183,27 +183,29 @@ EXPORT_PER_CPU_SYMBOL(numa_node);
 DEFINE_STATIC_KEY_TRUE(vm_numa_stat_key);
 
 /*
- * By default, when restrict_cma_redirect is false, all movable allocations
+ * By default, restrict_cma_redirect is set to true, so only MOVABLE allocations
+ * marked __GFP_CMA are eligible to be redirected to CMA region. These allocations
+ * are redirected if *any* free space is available in the CMA region.
+ * When restrict_cma_redirect is false, all movable allocations
  * are eligible for redirection to CMA region (i.e movable allocations are
  * not restricted from CMA region), when there is sufficient space there.
  * (see __rmqueue()).
- *
- * If restrict_cma_redirect is set to true, only MOVABLE allocations marked
- * __GFP_CMA are eligible to be redirected to CMA region. These allocations
- * are redirected if *any* free space is available in the CMA region.
  */
-DEFINE_STATIC_KEY_FALSE(restrict_cma_redirect);
+DEFINE_STATIC_KEY_TRUE(restrict_cma_redirect);
 
 static int __init restrict_cma_redirect_setup(char *str)
 {
 #ifdef CONFIG_CMA
-	static_branch_enable(&restrict_cma_redirect);
+	bool res;
+
+	if (!kstrtobool(str, &res) && !res)
+		static_branch_disable(&restrict_cma_redirect);
 #else
 	pr_warn("CONFIG_CMA not set. Ignoring restrict_cma_redirect option\n");
 #endif
 	return 1;
 }
-__setup("restrict_cma_redirect", restrict_cma_redirect_setup);
+__setup("restrict_cma_redirect=", restrict_cma_redirect_setup);
 
 static inline bool cma_redirect_restricted(void)
 {
@@ -3355,6 +3357,7 @@ get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
 	struct pglist_data *last_pgdat = NULL;
 	bool last_pgdat_dirty_ok = false;
 	bool no_fallback;
+	bool should_skip_zone = false;
 
 retry:
 	/*
@@ -3369,6 +3372,11 @@ retry:
 		unsigned long mark;
 
 		if (!zone_is_suitable(zone, order))
+			continue;
+
+		trace_android_vh_should_skip_zone(zone, gfp_mask, order,
+			ac->migratetype, &should_skip_zone);
+		if (should_skip_zone)
 			continue;
 
 		if (cpusets_enabled() &&
