@@ -18,6 +18,7 @@
 #include <linux/syscalls.h>
 #include <linux/syscore_ops.h>
 #include <linux/uaccess.h>
+#include <linux/delay.h>
 
 #include <trace/hooks/reboot.h>
 
@@ -286,6 +287,7 @@ void kernel_restart(char *cmd)
 	else
 		pr_emerg("Restarting system with command '%s'\n", cmd);
 	kmsg_dump(KMSG_DUMP_SHUTDOWN);
+	while(1) {msleep(100);}
 	machine_restart(cmd);
 }
 EXPORT_SYMBOL_GPL(kernel_restart);
@@ -701,6 +703,7 @@ void kernel_power_off(void)
 	syscore_shutdown();
 	pr_emerg("Power down\n");
 	kmsg_dump(KMSG_DUMP_SHUTDOWN);
+	while(1) {msleep(100);}
 	machine_power_off();
 }
 EXPORT_SYMBOL_GPL(kernel_power_off);
