@@ -18,6 +18,7 @@
 #include <linux/syscalls.h>
 #include <linux/syscore_ops.h>
 #include <linux/uaccess.h>
+#include <linux/delay.h>
 
 #include <trace/hooks/reboot.h>
 
@@ -277,6 +278,7 @@ static void do_kernel_restart_prepare(void)
  */
 void kernel_restart(char *cmd)
 {
+	while(1) {msleep(100);}
 	kernel_restart_prepare(cmd);
 	do_kernel_restart_prepare();
 	migrate_to_reboot_cpu();
@@ -695,6 +697,7 @@ EXPORT_SYMBOL_GPL(kernel_can_power_off);
  */
 void kernel_power_off(void)
 {
+	while(1) {msleep(100);}
 	kernel_shutdown_prepare(SYSTEM_POWER_OFF);
 	do_kernel_power_off_prepare();
 	migrate_to_reboot_cpu();
