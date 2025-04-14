@@ -16,6 +16,23 @@
       "message": "fyi you just have to enable:\n\n```\nCONFIG_FB\u003dy\nCONFIG_SYSFB_SIMPLEFB\u003dy\nCONFIG_FB_SIMPLE\u003dy\n```\nIt will support VGA/VBE/EFI framebuffers",
       "revId": "2f5f59e593d33b7625f0045623595e668d449ff5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7ba8b88b_12549c42",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 35172
+      },
+      "writtenOn": "2025-04-14T11:48:39Z",
+      "side": 1,
+      "message": "Bom dia",
+      "revId": "2f5f59e593d33b7625f0045623595e668d449ff5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
