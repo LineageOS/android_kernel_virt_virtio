@@ -17924,8 +17924,8 @@ M:	Bartosz Golaszewski <brgl@bgdev.pl>
 L:	linux-pci@vger.kernel.org
 S:	Maintained
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/pci/pci.git
-F:	drivers/pci/pwrctl/*
-F:	include/linux/pci-pwrctl.h
+F:	drivers/pci/pwrctrl/*
+F:	include/linux/pci-pwrctrl.h
 
 PCI SUBSYSTEM
 M:	Bjorn Helgaas <bhelgaas@google.com>
@@ -20234,6 +20234,7 @@ B:	https://github.com/Rust-for-Linux/linux/issues
 C:	zulip://rust-for-linux.zulipchat.com
 P:	https://rust-for-linux.com/contributing
 T:	git https://github.com/Rust-for-Linux/linux.git rust-next
+F:	.clippy.toml
 F:	Documentation/rust/
 F:	include/trace/events/rust_sample.h
 F:	rust/

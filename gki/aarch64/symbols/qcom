@@ -806,6 +806,8 @@
   dma_resv_fini
   dma_resv_get_singleton
   dma_resv_init
+  dma_resv_iter_first
+  dma_resv_iter_next
   dma_resv_wait_timeout
   dma_set_coherent_mask
   dma_set_mask
@@ -1121,6 +1123,7 @@
   flush_delayed_work
   flush_work
   __flush_workqueue
+  __folio_batch_release
   __folio_lock
   __folio_put
   folio_unlock
@@ -1206,6 +1209,7 @@
   get_cpu_idle_time_us
   get_device
   get_device_system_crosststamp
+  get_dmabuf_debugfs_data
   get_each_kmemcache_object
   get_free_pages_noprof
   get_governor_parent_kobj
@@ -1276,6 +1280,8 @@
   gro_cells_destroy
   gro_cells_init
   gro_cells_receive
+  gunyah_qtvm_register_notifier
+  gunyah_qtvm_unregister_notifier
   gunyah_rm_call
   gunyah_rm_notifier_register
   gunyah_rm_notifier_unregister
@@ -3275,6 +3281,8 @@
   __traceiter_android_rvh_finish_prio_fork
   __traceiter_android_rvh_flush_task
   __traceiter_android_rvh_get_nohz_timer_target
+  __traceiter_android_rvh_gh_after_vcpu_run
+  __traceiter_android_rvh_gh_before_vcpu_run
   __traceiter_android_rvh_gic_v3_set_affinity
   __traceiter_android_rvh_iommu_setup_dma_ops
   __traceiter_android_rvh_is_cpu_allowed
@@ -3399,6 +3407,8 @@
   __tracepoint_android_rvh_finish_prio_fork
   __tracepoint_android_rvh_flush_task
   __tracepoint_android_rvh_get_nohz_timer_target
+  __tracepoint_android_rvh_gh_after_vcpu_run
+  __tracepoint_android_rvh_gh_before_vcpu_run
   __tracepoint_android_rvh_gic_v3_set_affinity
   __tracepoint_android_rvh_iommu_setup_dma_ops
   __tracepoint_android_rvh_is_cpu_allowed

@@ -1,6 +1,7 @@
 [abi_symbol_list]
   arch_vma_name
   anon_vma_name
+  binder_alloc_copy_from_buffer
   walk_page_range
   vm_normal_page
   pmd_clear_bad
@@ -14,6 +15,8 @@
   __tracepoint_android_rvh_hw_protection_shutdown
   __traceiter_android_rvh_cpuinfo_c_show
   __tracepoint_android_rvh_cpuinfo_c_show
+  __tracepoint_android_vh_security_audit_log_setid
+  __traceiter_android_vh_security_audit_log_setid
   __traceiter_signal_generate
   __tracepoint_signal_generate
   __traceiter_android_rvh_do_el1_bti
@@ -46,6 +49,42 @@
   __tracepoint_android_vh_tcp_rcv_rtt_update
   percpu_ref_init
   percpu_ref_exit
+  mempool_exit
+  dm_register_target
+  dm_unregister_target
+  blk_crypto_evict_key
+  blk_crypto_derive_sw_secret
+  dm_shift_arg
+  dm_get_device
+  dm_put_device
+  dm_read_arg_group
+  dm_consume_args
+  bioset_init
+  dm_set_target_max_io_len
+  dm_per_bio_data
+  dm_bio_get_target_bio_nr
+  bioset_exit
+  dm_submit_bio_remap
+  dm_table_device_name
+  dm_table_event
+  empty_zero_page
+  dm_get_reserved_bio_based_ios
+  wait_for_completion_io
+  bio_crypt_set_ctx
+  zero_fill_bio_iter
+  errseq_set
+  filemap_invalidate_inode
+  iov_iter_folio_queue
+  mempool_init_noprof
+  netfs_write_subrequest_terminated
+  __filemap_set_wb_err
+  __trace_bputs
+  __tracepoint_android_rvh_f2fs_down_read
+  __traceiter_android_rvh_f2fs_down_read
+  __tracepoint_android_vh_f2fs_improve_priority
+  __traceiter_android_vh_f2fs_improve_priority
+  __tracepoint_android_vh_f2fs_restore_priority
+  __traceiter_android_vh_f2fs_restore_priority
   __tracepoint_android_vh_io_statistics
   __traceiter_android_vh_io_statistics
   __traceiter_android_vh_ufs_eh_timed_out
@@ -74,6 +113,8 @@
   __traceiter_f2fs_submit_folio_write
   __tracepoint_android_vh_f2fs_printk
   __traceiter_android_vh_f2fs_printk
+  __tracepoint_android_vh_f2fs_create
+  __traceiter_android_vh_f2fs_create
   wb_wakeup
   redirty_tail_locked
   bdi_list
@@ -256,6 +297,7 @@
   out_of_line_wait_on_bit_lock
   override_creds
   pagecache_get_page
+  pm_wakeup_irq
   posix_lock_file
   posix_test_lock
   prepare_kernel_cred
@@ -283,6 +325,7 @@
   super_setup_bdi
   tcp_sock_set_cork
   tcp_sock_set_nodelay
+  tcp_sync_mss
   timestamp_truncate
   truncate_inode_pages_final
   truncate_inode_pages_range
@@ -327,4 +370,13 @@
   usb_gadget_disconnect
   wakeup_sources_walk_next
   wakeup_sources_walk_start
+  __traceiter_android_vh_receive_sock
+  __tracepoint_android_vh_receive_sock
+  __traceiter_android_vh_task_get_classid
+  __tracepoint_android_vh_task_get_classid
+  _trace_android_vh_task_get_classid
+  __tracepoint_android_vh_dc_send_copy
+  __traceiter_android_vh_dc_send_copy
+  __tracepoint_android_vh_dc_receive
+  __traceiter_android_vh_dc_receive
 
