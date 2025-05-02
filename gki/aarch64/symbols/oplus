@@ -32,6 +32,7 @@
   dget_parent
   d_invalidate
   down_write_killable
+  do_traversal_all_lruvec
   arm64_mismatched_32bit_el0
   d_rehash
   drm_crtc_vblank_waitqueue
@@ -101,6 +102,7 @@
   lock_rename
   lookup_one_len_unlocked
   memcg_kmem_online_key
+  memcg_page_state
   mem_cgroup_from_id
   mem_cgroup_update_lru_size
   memory_cgrp_subsys
@@ -182,7 +184,10 @@
   skb_dump
   snd_pcm_hw_constraint_mask64
   snd_soc_find_dai
+  snd_usb_register_platform_ops
+  snd_usb_unregister_platform_ops
   spi_bus_type
+  shmem_mapping
   shrink_slab
   stack_depot_print
   stack_trace_save_tsk
@@ -208,6 +213,7 @@
   __traceiter_android_rvh_post_init_entity_util_avg
   __traceiter_android_rvh_place_entity
   __traceiter_android_rvh_set_cpus_allowed_comm
+  __traceiter_android_rvh_set_balance_anon_file_reclaim
   __traceiter_android_rvh_try_to_wake_up_success
   __traceiter_android_vh_adjust_alloc_flags
   __traceiter_android_vh_adjust_kvmalloc_flags
@@ -263,6 +269,7 @@
   __traceiter_android_vh_freq_qos_add_request
   __traceiter_android_vh_freq_qos_remove_request
   __traceiter_android_vh_freq_qos_update_request
+  __traceiter_android_vh_fsnotify_open
   __traceiter_android_vh_futex_sleep_start
   __traceiter_android_vh_futex_wait_end
   __traceiter_android_vh_futex_wait_start
@@ -270,7 +277,9 @@
   __traceiter_android_vh_futex_wake_traverse_plist
   __traceiter_android_vh_futex_wake_up_q_finish
   __traceiter_android_vh_get_page_wmark
+  __traceiter_android_vh_init_adjust_zone_wmark
   __traceiter_android_vh_irqtime_account_process_tick
+  __traceiter_android_vh_kmalloc_slab
   __traceiter_android_vh_kvmalloc_node_use_vmalloc
   __traceiter_android_vh_look_around
   __traceiter_android_vh_look_around_migrate_folio
@@ -327,6 +336,7 @@
   __traceiter_netif_receive_skb
   __traceiter_netif_rx
   __traceiter_mm_vmscan_kswapd_wake
+  __traceiter_mm_vmscan_direct_reclaim_begin
   __traceiter_sched_stat_blocked
   __traceiter_sched_stat_iowait
   __traceiter_sched_stat_runtime
@@ -341,6 +351,7 @@
   __tracepoint_android_rvh_place_entity
   __tracepoint_android_rvh_post_init_entity_util_avg
   __tracepoint_android_rvh_set_cpus_allowed_comm
+  __tracepoint_android_rvh_set_balance_anon_file_reclaim
   __tracepoint_android_rvh_try_to_wake_up_success
   __tracepoint_android_vh_adjust_alloc_flags
   __tracepoint_android_vh_adjust_kvmalloc_flags
@@ -402,8 +413,11 @@
   __tracepoint_android_vh_futex_wake_this
   __tracepoint_android_vh_futex_wake_traverse_plist
   __tracepoint_android_vh_futex_wake_up_q_finish
+  __tracepoint_android_vh_fsnotify_open
   __tracepoint_android_vh_get_page_wmark
+  __tracepoint_android_vh_init_adjust_zone_wmark
   __tracepoint_android_vh_irqtime_account_process_tick
+  __tracepoint_android_vh_kmalloc_slab
   __tracepoint_android_vh_kvmalloc_node_use_vmalloc
   __tracepoint_android_vh_look_around
   __tracepoint_android_vh_look_around_migrate_folio
@@ -459,6 +473,7 @@
   __tracepoint_net_dev_start_xmit
   __tracepoint_netif_receive_skb
   __tracepoint_netif_rx
+  __tracepoint_mm_vmscan_direct_reclaim_begin
   __tracepoint_mm_vmscan_kswapd_wake
   __tracepoint_sched_stat_blocked
   __tracepoint_sched_stat_iowait
@@ -496,6 +511,7 @@
   vfs_statfs
   vfs_unlink
   vma_set_file
+  __vmalloc_array_noprof
   wait_for_completion_io_timeout
   wait_for_completion_killable_timeout
   wakeup_source_remove
