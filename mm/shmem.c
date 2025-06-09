@@ -2178,6 +2178,7 @@ static int shmem_swapin_folio(struct inode *inode, pgoff_t index,
 
 	/* We have to do this with folio locked to prevent races */
 	folio_lock(folio);
+	trace_android_vh_shmem_swapin_folio(folio);
 	if (!folio_test_swapcache(folio) ||
 	    folio->swap.val != swap.val ||
 	    !shmem_confirm_swap(mapping, index, swap)) {
@@ -2538,7 +2539,7 @@ static vm_fault_t shmem_falloc_wait(struct vm_fault *vmf, struct inode *inode)
 	return ret;
 }
 
-static vm_fault_t shmem_fault(struct vm_fault *vmf)
+vm_fault_t shmem_fault(struct vm_fault *vmf)
 {
 	struct inode *inode = file_inode(vmf->vma->vm_file);
 	gfp_t gfp = mapping_gfp_mask(inode->i_mapping);

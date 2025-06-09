@@ -6,7 +6,6 @@ This module contains a full list of kernel modules
  compiled by GKI.
 """
 
-# LINT.IfChange
 _COMMON_GKI_MODULES_LIST = [
     # keep sorted
     "drivers/block/virtio_blk.ko",
@@ -99,11 +98,11 @@ _ARM_GKI_MODULES_LIST = [
 _ARM64_GKI_MODULES_LIST = [
     # keep sorted
     "arch/arm64/geniezone/gzvm.ko",
+    "drivers/android/rust_binder.ko",
     "drivers/char/hw_random/cctrng.ko",
     "drivers/misc/open-dice.ko",
     "drivers/ptp/ptp_kvm.ko",
 ]
-# LINT.ThenChange(gki/aarch64/protected_exports)
 
 _X86_GKI_MODULES_LIST = [
     # keep sorted
@@ -112,6 +111,7 @@ _X86_GKI_MODULES_LIST = [
 
 _X86_64_GKI_MODULES_LIST = [
     # keep sorted
+    "drivers/android/rust_binder.ko",
     "drivers/ptp/ptp_kvm.ko",
 ]
 
@@ -203,12 +203,10 @@ def get_kunit_modules_list(arch = None):
 
     return kunit_modules_list
 
-# LINT.IfChange
 _COMMON_UNPROTECTED_MODULES_LIST = [
     "drivers/block/zram/zram.ko",
     "mm/zsmalloc.ko",
 ]
-# LINT.ThenChange(gki/aarch64/protected_exports)
 
 # buildifier: disable=unnamed-macro
 def get_gki_protected_modules_list(arch = None):

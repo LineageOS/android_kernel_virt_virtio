@@ -27,6 +27,7 @@
  */
 
 #include <linux/arm_ffa.h>
+#include <asm/kvm_hypevents.h>
 #include <asm/kvm_pkvm.h>
 #include <kvm/arm_hypercalls.h>
 
@@ -1107,27 +1108,24 @@ out_unlock:
 	hyp_spin_unlock(&kvm_ffa_hyp_lock);
 }
 
-static void do_ffa_direct_msg(struct arm_smccc_res *res,
-			      struct kvm_cpu_context *ctxt,
+static void do_ffa_direct_msg(struct kvm_cpu_context *ctxt,
 			      u64 vm_handle)
 {
-	DECLARE_REG(u32, func_id, ctxt, 0);
 	DECLARE_REG(u32, endp, ctxt, 1);
-	DECLARE_REG(u32, msg_flags, ctxt, 2);
-	DECLARE_REG(u32, w3, ctxt, 3);
-	DECLARE_REG(u32, w4, ctxt, 4);
-	DECLARE_REG(u32, w5, ctxt, 5);
-	DECLARE_REG(u32, w6, ctxt, 6);
-	DECLARE_REG(u32, w7, ctxt, 7);
+
+	struct arm_smccc_1_2_regs *reg = (void *)&ctxt->regs.regs[0];
 
 	if (FIELD_GET(FFA_SRC_ENDPOINT_MASK, endp) != vm_handle) {
-		ffa_to_smccc_res(res, FFA_RET_INVALID_PARAMETERS);
+		struct arm_smccc_res res;
+
+		ffa_to_smccc_error(&res, FFA_RET_INVALID_PARAMETERS);
+		ffa_set_retval(ctxt, &res);
 		return;
 	}
 
-	arm_smccc_1_1_smc(func_id, endp, msg_flags, w3,
-			  w4, w5, w6, w7,
-			  res);
+	__hyp_exit();
+	arm_smccc_1_2_smc(reg, reg);
+	__hyp_enter();
 }
 
 bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
@@ -1198,8 +1196,8 @@ bool kvm_host_ffa_handler(struct kvm_cpu_context *host_ctxt, u32 func_id)
 		goto out_handled;
 	case FFA_MSG_SEND_DIRECT_REQ:
 	case FFA_FN64_MSG_SEND_DIRECT_REQ:
-		do_ffa_direct_msg(&res, host_ctxt, HOST_FFA_ID);
-		goto out_handled;
+		do_ffa_direct_msg(host_ctxt, HOST_FFA_ID);
+		return true;
 	}
 
 	if (ffa_call_supported(func_id))
@@ -1273,8 +1271,8 @@ bool kvm_guest_ffa_handler(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code)
 		goto out_guest;
 	case FFA_MSG_SEND_DIRECT_REQ:
 	case FFA_FN64_MSG_SEND_DIRECT_REQ:
-		do_ffa_direct_msg(&res, ctxt, hyp_vcpu_to_ffa_handle(hyp_vcpu));
-		goto out_guest;
+		do_ffa_direct_msg(ctxt, hyp_vcpu_to_ffa_handle(hyp_vcpu));
+		return true;
 	default:
 		ret = -EOPNOTSUPP;
 		break;

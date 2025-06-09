@@ -209,8 +209,6 @@ static int smmu_build_cmd(u64 *cmd, struct arm_smmu_cmdq_ent *ent)
 static int smmu_issue_cmds(struct hyp_arm_smmu_v3_device *smmu,
 			   u64 *cmds, int n)
 {
-	int idx = Q_IDX(smmu, smmu->cmdq_prod);
-	u64 *slot = smmu->cmdq_base + idx * CMDQ_ENT_DWORDS;
 	int i;
 	int ret;
 	u32 prod;
@@ -219,8 +217,14 @@ static int smmu_issue_cmds(struct hyp_arm_smmu_v3_device *smmu,
 	if (ret)
 		return ret;
 
-	for (i = 0; i < CMDQ_ENT_DWORDS * n; i++)
-		slot[i] = cpu_to_le64(cmds[i]);
+	for (i = 0; i < n; i++) {
+		int j;
+		int idx = Q_IDX(smmu, smmu->cmdq_prod + i);
+		u64 *slot = smmu->cmdq_base + idx * CMDQ_ENT_DWORDS;
+
+		for (j = 0; j < CMDQ_ENT_DWORDS; j++)
+			slot[j] = cpu_to_le64(cmds[i * CMDQ_ENT_DWORDS + j]);
+	}
 
 	prod = (Q_WRAP(smmu, smmu->cmdq_prod) | Q_IDX(smmu, smmu->cmdq_prod)) + n;
 	smmu->cmdq_prod = Q_OVF(smmu->cmdq_prod) | Q_WRAP(smmu, prod) | Q_IDX(smmu, prod);
@@ -1503,7 +1507,7 @@ static phys_addr_t smmu_iova_to_phys(struct kvm_hyp_iommu_domain *domain,
 }
 
 static bool smmu_dabt_device(struct hyp_arm_smmu_v3_device *smmu,
-			     struct kvm_cpu_context *host_ctxt,
+			     struct user_pt_regs *regs,
 			     u64 esr, u32 off)
 {
 	bool is_write = esr & ESR_ELx_WNR;
@@ -1539,9 +1543,9 @@ static bool smmu_dabt_device(struct hyp_arm_smmu_v3_device *smmu,
 	if (!mask)
 		return false;
 	if (is_write)
-		writel_relaxed(cpu_reg(host_ctxt, rd) & mask, smmu->base + off);
+		writel_relaxed(regs->regs[rd] & mask, smmu->base + off);
 	else
-		cpu_reg(host_ctxt, rd) = readl_relaxed(smmu->base + off);
+		regs->regs[rd] = readl_relaxed(smmu->base + off);
 
 	return true;
 }
@@ -1601,14 +1605,14 @@ static int smmu_dev_block_dma(struct kvm_hyp_iommu *iommu, u32 sid, bool is_host
 	return ret;
 }
 
-static bool smmu_dabt_handler(struct kvm_cpu_context *host_ctxt, u64 esr, u64 addr)
+static bool smmu_dabt_handler(struct user_pt_regs *regs, u64 esr, u64 addr)
 {
 	struct hyp_arm_smmu_v3_device *smmu;
 
 	for_each_smmu(smmu) {
 		if (addr < smmu->mmio_addr || addr >= smmu->mmio_addr + smmu->mmio_size)
 			continue;
-		return smmu_dabt_device(smmu, host_ctxt, esr, addr - smmu->mmio_addr);
+		return smmu_dabt_device(smmu, regs, esr, addr - smmu->mmio_addr);
 	}
 	return false;
 }

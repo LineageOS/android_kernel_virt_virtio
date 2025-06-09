@@ -733,10 +733,10 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa)
 	ppage = kvm_pinned_pages_iter_first(&host_kvm->arch.pkvm.pinned_pages,
 					   ipa, ipa + PAGE_SIZE - 1);
 	if (ppage) {
+		WARN_ON_ONCE(ppage->pins != 1);
+
 		if (ppage->pins)
 			ppage->pins--;
-		else
-			WARN_ON(1);
 
 		pins = ppage->pins;
 		if (!pins)
@@ -751,6 +751,25 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa)
 	account_locked_vm(mm, 1 << ppage->order, false);
 	unpin_user_pages_dirty_lock(&ppage->page, 1, true);
 	kfree(ppage);
+}
+
+int pkvm_enable_smc_forwarding(struct file *kvm_file)
+{
+	struct kvm *host_kvm;
+
+	if (!file_is_kvm(kvm_file))
+		return -EINVAL;
+
+	if (!kvm_get_kvm_safe(kvm_file->private_data))
+		return -EINVAL;
+
+	host_kvm = kvm_file->private_data;
+	if (!host_kvm)
+		return -EINVAL;
+
+	host_kvm->arch.pkvm.smc_forwarded = true;
+
+	return 0;
 }
 
 static int __init pkvm_firmware_rmem_err(struct reserved_mem *rmem,
@@ -927,9 +946,26 @@ static int __init early_pkvm_modules_cfg(char *arg)
 }
 early_param("kvm-arm.protected_modules", early_pkvm_modules_cfg);
 
-static void free_modprobe_argv(struct subprocess_info *info)
+static void __init free_modprobe_argv(struct subprocess_info *info)
 {
 	kfree(info->argv);
+}
+
+static int __init init_modprobe(struct subprocess_info *info, struct cred *new)
+{
+	struct file *file = filp_open("/dev/kmsg", O_RDWR, 0);
+
+	if (IS_ERR(file)) {
+		pr_warn("Warning: unable to open /dev/kmsg, modprobe will be silent.\n");
+		return 0;
+	}
+
+	init_dup(file);
+	init_dup(file);
+	init_dup(file);
+	fput(file);
+
+	return 0;
 }
 
 /*
@@ -974,7 +1010,7 @@ static int __init __pkvm_request_early_module(char *module_name,
 	argv[idx++] = NULL;
 
 	info = call_usermodehelper_setup(modprobe_path, argv, envp, GFP_KERNEL,
-					 NULL, free_modprobe_argv, NULL);
+					 init_modprobe, free_modprobe_argv, NULL);
 	if (!info)
 		goto err;
 
@@ -1077,7 +1113,7 @@ static struct module *pkvm_el2_mod_to_module(struct pkvm_el2_module *hyp_mod)
 	return container_of(arch, struct module, arch);
 }
 
-#ifdef CONFIG_PROTECTED_NVHE_STACKTRACE
+#ifdef CONFIG_PKVM_STACKTRACE
 unsigned long pkvm_el2_mod_kern_va(unsigned long addr)
 {
 	struct pkvm_el2_module *mod;
@@ -1449,7 +1485,7 @@ EXPORT_SYMBOL(__pkvm_register_el2_call);
 
 void pkvm_el2_mod_frob_sections(Elf_Ehdr *ehdr, Elf_Shdr *sechdrs, char *secstrings)
 {
-#ifdef CONFIG_PROTECTED_NVHE_FTRACE
+#ifdef CONFIG_PKVM_FTRACE
 	int i;
 
 	for (i = 0; i < ehdr->e_shnum; i++) {
@@ -1805,8 +1841,7 @@ kvm_pte_t *pkvm_pgtable_stage2_create_unlinked(struct kvm_pgtable *pgt, u64 phys
 	return NULL;
 }
 
-int pkvm_pgtable_stage2_split(struct kvm_pgtable *pgt, u64 addr, u64 size,
-			      struct kvm_mmu_memory_cache *mc)
+int pkvm_pgtable_stage2_split(struct kvm_pgtable *pgt, u64 addr, u64 size, void *mc)
 {
 	WARN_ON_ONCE(1);
 	return -EINVAL;
