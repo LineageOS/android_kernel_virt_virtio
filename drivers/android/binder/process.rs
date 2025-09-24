@@ -184,11 +184,6 @@ impl ProcessInner {
         }
     }
 
-    /// Push work to be cancelled. Only used during process teardown.
-    pub(crate) fn push_work_for_release(&mut self, work: DLArc<dyn DeliverToRead>) {
-        self.work.push_back(work);
-    }
-
     pub(crate) fn remove_node(&mut self, ptr: u64) {
         self.nodes.remove(&ptr);
     }
@@ -277,7 +272,7 @@ impl ProcessInner {
 
     /// Finds a delivered death notification with the given cookie, removes it from the thread's
     /// delivered list, and returns it.
-    fn pull_delivered_death(&mut self, cookie: usize) -> Option<DArc<NodeDeath>> {
+    fn pull_delivered_death(&mut self, cookie: u64) -> Option<DArc<NodeDeath>> {
         let mut cursor = self.delivered_deaths.cursor_front();
         while let Some(next) = cursor.peek_next() {
             if next.cookie == cookie {
@@ -617,7 +612,7 @@ impl Process {
 
                 seq_print!(
                     m,
-                    "  ref {}: desc {} {}node {debug_id} s {strong} w {weak}",
+                    "  ref {}: desc {} {}node {debug_id} s {strong} w {weak}\n",
                     r.debug_id,
                     r.handle,
                     if dead { "dead " } else { "" },
@@ -931,7 +926,10 @@ impl Process {
                 refs.by_node.remove(&id);
             }
         } else {
-            pr_warn!("{}: no such ref {handle}\n", kernel::current!().pid());
+            // All refs are cleared in process exit, so this warning is expected in that case.
+            if !self.inner.lock().is_dead {
+                pr_warn!("{}: no such ref {handle}\n", self.pid_in_current_ns());
+            }
         }
         Ok(())
     }
@@ -1060,10 +1058,10 @@ impl Process {
         }
     }
 
-    pub(crate) fn buffer_make_freeable(&self, offset: usize, data: Option<AllocationInfo>) {
+    pub(crate) fn buffer_make_freeable(&self, offset: usize, mut data: Option<AllocationInfo>) {
         let mut inner = self.inner.lock();
         if let Some(ref mut mapping) = &mut inner.mapping {
-            if mapping.alloc.reservation_commit(offset, data).is_err() {
+            if mapping.alloc.reservation_commit(offset, &mut data).is_err() {
                 pr_warn!("Offset {} failed to be marked freeable\n", offset);
             }
         }
@@ -1176,11 +1174,7 @@ impl Process {
         thread: &Thread,
     ) -> Result {
         let handle: u32 = reader.read()?;
-        let cookie: usize = reader.read()?;
-
-        // TODO: First two should result in error, but not the others.
-
-        // TODO: Do we care about the context manager dying?
+        let cookie: u64 = reader.read()?;
 
         // Queue BR_ERROR if we can't allocate memory for the death notification.
         let death = UniqueArc::new_uninit(GFP_KERNEL).map_err(|err| {
@@ -1188,10 +1182,14 @@ impl Process {
             err
         })?;
         let mut refs = self.node_refs.lock();
-        let info = refs.by_handle.get_mut(&handle).ok_or(EINVAL)?;
+        let Some(info) = refs.by_handle.get_mut(&handle) else {
+            pr_warn!("BC_REQUEST_DEATH_NOTIFICATION invalid ref {handle}\n");
+            return Ok(());
+        };
 
         // Nothing to do if there is already a death notification request for this handle.
         if info.death().is_some() {
+            pr_warn!("BC_REQUEST_DEATH_NOTIFICATION death notification already set\n");
             return Ok(());
         }
 
@@ -1209,10 +1207,10 @@ impl Process {
             let owner = info.node_ref2().node.owner.clone();
             let mut owner_inner = owner.inner.lock();
             if owner_inner.is_dead {
-                let death = ListArc::from(death);
-                *info.death() = Some(death.clone_arc());
+                let death = Arc::from(death);
+                *info.death() = Some(death.clone());
                 drop(owner_inner);
-                let _ = self.push_work(death);
+                death.set_dead();
             } else {
                 let death = ListArc::from(death);
                 *info.death() = Some(death.clone_arc());
@@ -1224,15 +1222,22 @@ impl Process {
 
     pub(crate) fn clear_death(&self, reader: &mut UserSliceReader, thread: &Thread) -> Result {
         let handle: u32 = reader.read()?;
-        let cookie: usize = reader.read()?;
+        let cookie: u64 = reader.read()?;
 
         let mut refs = self.node_refs.lock();
-        let info = refs.by_handle.get_mut(&handle).ok_or(EINVAL)?;
+        let Some(info) = refs.by_handle.get_mut(&handle) else {
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION invalid ref {handle}\n");
+            return Ok(());
+        };
 
-        let death = info.death().take().ok_or(EINVAL)?;
+        let Some(death) = info.death().take() else {
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION death notification not active\n");
+            return Ok(());
+        };
         if death.cookie != cookie {
             *info.death() = Some(death);
-            return Err(EINVAL);
+            pr_warn!("BC_CLEAR_DEATH_NOTIFICATION death notification cookie mismatch\n");
+            return Ok(());
         }
 
         // Update state and determine if we need to queue a work item. We only need to do it when
@@ -1246,7 +1251,7 @@ impl Process {
         Ok(())
     }
 
-    pub(crate) fn dead_binder_done(&self, cookie: usize, thread: &Thread) {
+    pub(crate) fn dead_binder_done(&self, cookie: u64, thread: &Thread) {
         if let Some(death) = self.inner.lock().pull_delivered_death(cookie) {
             death.set_notification_done(thread);
         }
@@ -1290,43 +1295,32 @@ impl Process {
         let binderfs_file = self.inner.lock().binderfs_file.take();
         drop(binderfs_file);
 
-        // Move oneway_todo into the process todolist.
+        // Release threads.
+        let threads = {
+            let mut inner = self.inner.lock();
+            let threads = take(&mut inner.threads);
+            let ready = take(&mut inner.ready_threads);
+            drop(inner);
+            drop(ready);
+
+            for thread in threads.values() {
+                thread.release();
+            }
+            threads
+        };
+
+        // Release nodes.
         {
-            let mut inner = self.lock_with_nodes();
-            for node in inner.nodes.values() {
-                node.release(&mut inner.inner);
+            while let Some(node) = {
+                let mut lock = self.inner.lock();
+                lock.nodes.cursor_front().map(|c| c.remove_current().1)
+            } {
+                node.to_key_value().1.release();
             }
         }
 
-        // Cancel all pending work items.
-        while let Some(work) = self.get_work() {
-            work.into_arc().cancel();
-        }
-
-        // Free any resources kept alive by allocated buffers.
-        let omapping = self.inner.lock().mapping.take();
-        if let Some(mut mapping) = omapping {
-            let address = mapping.address;
-            mapping
-                .alloc
-                .take_for_each(|offset, size, debug_id, odata| {
-                    let ptr = offset + address;
-                    let mut alloc =
-                        Allocation::new(self.clone(), debug_id, offset, size, ptr, false);
-                    if let Some(data) = odata {
-                        alloc.set_info(data);
-                    }
-                    drop(alloc)
-                });
-        }
-
-        // Drop all references. We do this dance with `swap` to avoid destroying the references
-        // while holding the lock.
-        let mut refs = self.node_refs.lock();
-        let mut node_refs = take(&mut refs.by_handle);
-        let freeze_listeners = take(&mut refs.freeze_listeners);
-        drop(refs);
-        for info in node_refs.values_mut() {
+        // Clean up death listeners and remove nodes from external node info lists.
+        for info in self.node_refs.lock().by_handle.values_mut() {
             // SAFETY: We are removing the `NodeRefInfo` from the right node.
             unsafe { info.node_ref2().node.remove_node_info(&info) };
 
@@ -1338,37 +1332,55 @@ impl Process {
             };
             death.set_cleared(false);
         }
-        drop(node_refs);
+
+        // Clean up freeze listeners.
+        let freeze_listeners = take(&mut self.node_refs.lock().freeze_listeners);
         for listener in freeze_listeners.values() {
             listener.on_process_exit(&self);
         }
         drop(freeze_listeners);
 
-        // Do similar dance for the state lock.
-        let mut inner = self.inner.lock();
-        let threads = take(&mut inner.threads);
-        let nodes = take(&mut inner.nodes);
-        drop(inner);
-
-        // Release all threads.
-        for thread in threads.values() {
-            thread.release();
+        // Release refs on foreign nodes.
+        {
+            let mut refs = self.node_refs.lock();
+            let by_handle = take(&mut refs.by_handle);
+            let by_node = take(&mut refs.by_node);
+            drop(refs);
+            drop(by_node);
+            drop(by_handle);
         }
 
-        // Deliver death notifications.
-        for node in nodes.values() {
-            loop {
-                let death = {
-                    let mut inner = self.inner.lock();
-                    if let Some(death) = node.next_death(&mut inner) {
-                        death
-                    } else {
-                        break;
+        // Cancel all pending work items.
+        while let Some(work) = self.get_work() {
+            work.into_arc().cancel();
+        }
+
+        let delivered_deaths = take(&mut self.inner.lock().delivered_deaths);
+        drop(delivered_deaths);
+
+        // Free any resources kept alive by allocated buffers.
+        let omapping = self.inner.lock().mapping.take();
+        if let Some(mut mapping) = omapping {
+            let address = mapping.address;
+            mapping
+                .alloc
+                .take_for_each(|offset, size, debug_id, odata| {
+                    let ptr = offset + address;
+                    pr_warn!(
+                        "{}: removing orphan mapping {offset}:{size}\n",
+                        self.pid_in_current_ns()
+                    );
+                    let mut alloc =
+                        Allocation::new(self.clone(), debug_id, offset, size, ptr, false);
+                    if let Some(data) = odata {
+                        alloc.set_info(data);
                     }
-                };
-                death.set_dead();
-            }
+                    drop(alloc)
+                });
         }
+
+        // calls to synchronize_rcu() in thread drop will happen here
+        drop(threads);
     }
 
     pub(crate) fn drop_outstanding_txn(&self) {

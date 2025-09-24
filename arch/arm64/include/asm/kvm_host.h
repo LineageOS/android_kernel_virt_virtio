@@ -281,7 +281,6 @@ struct kvm_pinned_page {
 	u64			ipa;
 	u64			__subtree_last;
 	u8			order;
-	u16			pins;
 };
 
 struct kvm_pinned_page
@@ -1705,6 +1704,7 @@ void kvm_set_vm_id_reg(struct kvm *kvm, u32 reg, u64 val);
 #define HYP_ALLOC_MGT_IOMMU_ID		1
 
 unsigned long __pkvm_reclaim_hyp_alloc_mgt(unsigned long nr_pages);
+int __pkvm_topup_hyp_alloc_mgt_mc(unsigned long id, struct kvm_hyp_memcache *mc);
 int __pkvm_topup_hyp_alloc_mgt_gfp(unsigned long id, unsigned long nr_pages,
 				   unsigned long sz_alloc, gfp_t gfp);
 
@@ -1735,6 +1735,9 @@ int kvm_iommu_init_driver(void);
 void kvm_iommu_remove_driver(void);
 pkvm_handle_t kvm_get_iommu_id_by_of(struct device_node *np);
 
+struct page *kvm_iommu_cma_alloc(void);
+bool kvm_iommu_cma_release(struct page *p);
+
 int pkvm_iommu_suspend(struct device *dev);
 int pkvm_iommu_resume(struct device *dev);
 
@@ -1747,14 +1750,22 @@ struct kvm_iommu_sg {
 	unsigned int pgcount;
 };
 
+
+#define kvm_iommu_sg_nents_size(n) (PAGE_ALIGN((n) * sizeof(struct kvm_iommu_sg)))
+
+static inline unsigned int kvm_iommu_sg_nents_round(unsigned int nents)
+{
+	return kvm_iommu_sg_nents_size(nents) / sizeof(struct kvm_iommu_sg);
+}
+
 static inline struct kvm_iommu_sg *kvm_iommu_sg_alloc(unsigned int nents, gfp_t gfp)
 {
-	return alloc_pages_exact(PAGE_ALIGN(nents * sizeof(struct kvm_iommu_sg)), gfp);
+	return alloc_pages_exact(kvm_iommu_sg_nents_size(nents), gfp);
 }
 
 static inline void kvm_iommu_sg_free(struct kvm_iommu_sg *sg, unsigned int nents)
 {
-	free_pages_exact(sg, PAGE_ALIGN(nents * sizeof(struct kvm_iommu_sg)));
+	free_pages_exact(sg, kvm_iommu_sg_nents_size(nents));
 }
 
 

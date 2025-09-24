@@ -482,6 +482,8 @@ static bool lru_gen_clear_refs(struct folio *folio)
  */
 void folio_mark_accessed(struct folio *folio)
 {
+	if (folio_test_dropbehind(folio))
+		return;
 	if (lru_gen_enabled()) {
 		lru_gen_inc_refs(folio);
 		return;
@@ -742,6 +744,7 @@ void folio_deactivate(struct folio *folio)
 
 	folio_batch_add_and_move(folio, lru_deactivate, true);
 }
+EXPORT_SYMBOL_GPL(folio_deactivate);
 
 /**
  * folio_mark_lazyfree - make an anon folio lazyfree
