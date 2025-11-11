@@ -806,8 +806,15 @@ static int __remove_mapping(struct address_space *mapping, struct folio *folio,
 		 * same address_space.
 		 */
 		if (reclaimed && folio_is_file_lru(folio) &&
-		    !mapping_exiting(mapping) && !dax_mapping(mapping))
+		    !mapping_exiting(mapping) && !dax_mapping(mapping)) {
+			bool keep = false;
+
+			trace_android_vh_keep_reclaimed_folio(folio, refcount, &keep);
+			if (keep)
+				goto cannot_free;
 			shadow = workingset_eviction(folio, target_memcg);
+		}
+		trace_android_vh_clear_reclaimed_folio(folio, reclaimed);
 		__filemap_remove_folio(folio, shadow);
 		xa_unlock_irq(&mapping->i_pages);
 		if (mapping_shrinkable(mapping))
@@ -1595,6 +1602,7 @@ activate_locked:
 keep_locked:
 		folio_unlock(folio);
 keep:
+		trace_android_vh_adjust_nr_reclaimed(folio, &nr_reclaimed);
 		list_add(&folio->lru, &ret_folios);
 		VM_BUG_ON_FOLIO(folio_test_lru(folio) ||
 				folio_test_unevictable(folio), folio);
@@ -1766,6 +1774,7 @@ static unsigned long isolate_lru_folios(unsigned long nr_to_scan,
 	unsigned long scan, total_scan, nr_pages;
 	LIST_HEAD(folios_skipped);
 	unsigned long nr_scanned_before = *nr_scanned;
+	bool bypass = false;
 
 	trace_android_vh_mm_isolate_priv_lru(nr_to_scan, lruvec, lru, dst, sc->reclaim_idx,
 					     sc->may_unmap, nr_scanned, &nr_taken);
@@ -1802,6 +1811,11 @@ static unsigned long isolate_lru_folios(unsigned long nr_to_scan,
 
 		if (!folio_test_lru(folio))
 			goto move;
+
+		trace_android_vh_may_unmap_folio(lru, sc, folio, &bypass);
+		if (bypass)
+			goto move;
+
 		if (!sc->may_unmap && folio_mapped(folio))
 			goto move;
 
@@ -4564,7 +4578,7 @@ static bool sort_folio(struct lruvec *lruvec, struct folio *folio, struct scan_c
 	}
 
 	/* ineligible */
-	if (!folio_test_lru(folio) || zone > sc->reclaim_idx) {
+	if (zone > sc->reclaim_idx) {
 		gen = folio_inc_gen(lruvec, folio, false);
 		list_move_tail(&folio->lru, &lrugen->folios[gen][type][zone]);
 		return true;
@@ -4805,6 +4819,11 @@ retry:
 
 	list_for_each_entry_safe_reverse(folio, next, &list, lru) {
 		DEFINE_MIN_SEQ(lruvec);
+		bool bypass = false;
+
+		trace_android_vh_evict_folios_bypass(folio, &bypass);
+		if (bypass)
+			continue;
 
 		if (!folio_evictable(folio)) {
 			list_del(&folio->lru);
@@ -4928,6 +4947,10 @@ static bool should_abort_scan(struct lruvec *lruvec, struct scan_control *sc)
 
 	trace_android_vh_mglru_should_abort_scan(sc->nr_reclaimed,
 		sc->nr_to_reclaim, sc->order, &bypass);
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
+	trace_android_vh_mglru_should_abort_scan_ex(&sc->android_vendor_data1,
+						    &bypass);
+#endif
 	/* don't abort memcg reclaim to ensure fairness */
 	if (!root_reclaim(sc) && !bypass)
 		return false;
@@ -7018,6 +7041,7 @@ static bool kswapd_shrink_node(pg_data_t *pgdat,
 
 		sc->nr_to_reclaim += max(high_wmark_pages(zone), SWAP_CLUSTER_MAX);
 	}
+	trace_android_rvh_kswapd_shrink_node(&sc->nr_to_reclaim);
 
 	/*
 	 * Historically care was taken to put equal pressure on all zones but

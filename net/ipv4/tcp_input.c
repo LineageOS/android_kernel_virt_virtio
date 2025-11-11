@@ -752,8 +752,7 @@ static inline void tcp_rcv_rtt_measure_ts(struct sock *sk,
 void tcp_rcv_space_adjust(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 copied;
-	int time;
+	int time, inq, copied;
 
 	trace_tcp_rcv_space_adjust(sk);
 
@@ -764,6 +763,9 @@ void tcp_rcv_space_adjust(struct sock *sk)
 
 	/* Number of bytes copied to user in last RTT */
 	copied = tp->copied_seq - tp->rcvq_space.seq;
+	/* Number of bytes in receive queue. */
+	inq = tp->rcv_nxt - tp->copied_seq;
+	copied -= inq;
 	if (copied <= tp->rcvq_space.space)
 		goto new_measure;
 
@@ -4715,8 +4717,6 @@ static void tcp_rcv_spurious_retrans(struct sock *sk, const struct sk_buff *skb)
 	 * repathing due to our own RTO, then rehash the socket to repath our
 	 * packets.
 	 */
-	 trace_android_rvh_tcp_rcv_spurious_retrans(sk);
-
 #if IS_ENABLED(CONFIG_IPV6)
 	if (inet_csk(sk)->icsk_ca_state != TCP_CA_Loss &&
 	    skb->protocol == htons(ETH_P_IPV6) &&
