@@ -44,6 +44,8 @@
 #include "conditional.h"
 #include "ima.h"
 
+extern char saved_command_line[];
+
 enum sel_inos {
 	SEL_ROOT_INO = 2,
 	SEL_LOAD,	/* load policy */
@@ -158,6 +160,9 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 		goto out;
 
 	new_value = !!scan_value;
+
+	if (strstr(saved_command_line, "androidboot.selinux=permissive"))
+		new_value = 0;
 
 	old_value = enforcing_enabled();
 	if (new_value != old_value) {
