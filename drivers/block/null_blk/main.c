@@ -223,7 +223,7 @@ MODULE_PARM_DESC(discard, "Support discard operations (requires memory-backed nu
 
 static unsigned long g_cache_size;
 module_param_named(cache_size, g_cache_size, ulong, 0444);
-MODULE_PARM_DESC(mbps, "Cache size in MiB for memory-backed device. Default: 0 (none)");
+MODULE_PARM_DESC(cache_size, "Cache size in MiB for memory-backed device. Default: 0 (none)");
 
 static bool g_fua = true;
 module_param_named(fua, g_fua, bool, 0444);
@@ -468,6 +468,7 @@ NULLB_DEVICE_ATTR(no_sched, bool, NULL);
 NULLB_DEVICE_ATTR(shared_tags, bool, NULL);
 NULLB_DEVICE_ATTR(shared_tag_bitmap, bool, NULL);
 NULLB_DEVICE_ATTR(fua, bool, NULL);
+NULLB_DEVICE_ATTR(preserves_write_order, bool, NULL);
 
 static ssize_t nullb_device_power_show(struct config_item *item, char *page)
 {
@@ -599,6 +600,7 @@ static struct configfs_attribute *nullb_device_attrs[] = {
 	&nullb_device_attr_hw_queue_depth,
 	&nullb_device_attr_index,
 	&nullb_device_attr_blocking,
+	&nullb_device_attr_preserves_write_order,
 	&nullb_device_attr_use_per_node_hctx,
 	&nullb_device_attr_power,
 	&nullb_device_attr_memory_backed,
@@ -1925,6 +1927,8 @@ static int null_add_dev(struct nullb_device *dev)
 	if (dev->virt_boundary)
 		lim.virt_boundary_mask = PAGE_SIZE - 1;
 	null_config_discard(nullb, &lim);
+	if (dev->preserves_write_order)
+		lim.features |= BLK_FEAT_ORDERED_HWQ;
 	if (dev->zoned) {
 		rv = null_init_zoned_dev(dev, &lim);
 		if (rv)

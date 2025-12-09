@@ -494,9 +494,32 @@ u64 dm_start_time_ns_from_clone(struct bio *bio)
 }
 EXPORT_SYMBOL_GPL(dm_start_time_ns_from_clone);
 
-static inline bool bio_is_flush_with_data(struct bio *bio)
+static bool dm_table_has_one_device(struct dm_table *map)
 {
-	return ((bio->bi_opf & REQ_PREFLUSH) && bio->bi_iter.bi_size);
+	struct list_head *devices = dm_table_get_devices(map);
+
+	return !list_empty(devices) && devices->next == devices->prev;
+}
+
+static bool bio_should_be_requeued(struct mapped_device *md, struct bio *bio)
+{
+	struct dm_table *map;
+
+	guard(rcu)();
+
+	map = (struct dm_table *)rcu_dereference(md->map);
+
+	/*
+	 * .flush_bypasses_map is set on targets where it is safe to skip the
+	 * map function and submit bios directly to the underlying block
+	 * devices.
+	 *
+	 * If we have just one underlying device (i.e. there is one linear
+	 * target or multiple linear targets pointing to the same device), we
+	 * can send the flush with data directly to it.
+	 */
+	return bio->bi_opf & REQ_PREFLUSH && bio->bi_iter.bi_size &&
+		map->flush_bypasses_map && dm_table_has_one_device(map);
 }
 
 static inline unsigned int dm_io_sectors(struct dm_io *io, struct bio *bio)
@@ -505,7 +528,7 @@ static inline unsigned int dm_io_sectors(struct dm_io *io, struct bio *bio)
 	 * If REQ_PREFLUSH set, don't account payload, it will be
 	 * submitted (and accounted) after this flush completes.
 	 */
-	if (bio_is_flush_with_data(bio))
+	if (bio_should_be_requeued(io->md, bio))
 		return 0;
 	if (unlikely(dm_io_flagged(io, DM_IO_WAS_SPLIT)))
 		return io->sectors;
@@ -980,7 +1003,7 @@ static void __dm_io_complete(struct dm_io *io, bool first_stage)
 	if (requeued)
 		return;
 
-	if (bio_is_flush_with_data(bio)) {
+	if (bio_should_be_requeued(md, bio)) {
 		/*
 		 * Preflush done for flush with data, reissue
 		 * without REQ_PREFLUSH.
@@ -1829,9 +1852,8 @@ static inline bool dm_zone_bio_needs_split(struct bio *bio)
 
 static inline bool dm_zone_plug_bio(struct mapped_device *md, struct bio *bio)
 {
-	if (!bio_needs_zone_write_plugging(bio))
-		return false;
-	return blk_zone_plug_bio(bio, 0);
+	return bio_needs_zone_write_plugging(bio) &&
+		blk_zone_plug_bio(bio, 0, -1);
 }
 
 static blk_status_t __send_zone_reset_all_emulated(struct clone_info *ci,
@@ -2012,7 +2034,7 @@ static void dm_split_and_process_bio(struct mapped_device *md,
 	}
 	init_clone_info(&ci, io, map, bio, is_abnormal);
 
-	if (bio->bi_opf & REQ_PREFLUSH) {
+	if (bio_should_be_requeued(md, bio)) {
 		__send_empty_flush(&ci);
 		/* dm_io_complete submits any data associated with flush */
 		goto out;
@@ -2924,7 +2946,7 @@ static int __dm_suspend(struct mapped_device *md, struct dm_table *map,
 {
 	bool do_lockfs = suspend_flags & DM_SUSPEND_LOCKFS_FLAG;
 	bool noflush = suspend_flags & DM_SUSPEND_NOFLUSH_FLAG;
-	int r;
+	int r = 0;
 
 	lockdep_assert_held(&md->suspend_lock);
 
@@ -2976,8 +2998,10 @@ static int __dm_suspend(struct mapped_device *md, struct dm_table *map,
 	 * Stop md->queue before flushing md->wq in case request-based
 	 * dm defers requests to md->wq from md->queue.
 	 */
-	if (dm_request_based(md))
+	if (map && dm_request_based(md)) {
 		dm_stop_queue(md->queue);
+		set_bit(DMF_QUEUE_STOPPED, &md->flags);
+	}
 
 	flush_workqueue(md->wq);
 
@@ -2986,7 +3010,8 @@ static int __dm_suspend(struct mapped_device *md, struct dm_table *map,
 	 * We call dm_wait_for_completion to wait for all existing requests
 	 * to finish.
 	 */
-	r = dm_wait_for_completion(md, task_state);
+	if (map)
+		r = dm_wait_for_completion(md, task_state);
 	if (!r)
 		set_bit(dmf_suspended_flag, &md->flags);
 
@@ -2999,7 +3024,7 @@ static int __dm_suspend(struct mapped_device *md, struct dm_table *map,
 	if (r < 0) {
 		dm_queue_flush(md);
 
-		if (dm_request_based(md))
+		if (test_and_clear_bit(DMF_QUEUE_STOPPED, &md->flags))
 			dm_start_queue(md->queue);
 
 		unlock_fs(md);
@@ -3083,7 +3108,7 @@ static int __dm_resume(struct mapped_device *md, struct dm_table *map)
 	 * so that mapping of targets can work correctly.
 	 * Request-based dm is queueing the deferred I/Os in its request_queue.
 	 */
-	if (dm_request_based(md))
+	if (test_and_clear_bit(DMF_QUEUE_STOPPED, &md->flags))
 		dm_start_queue(md->queue);
 
 	unlock_fs(md);
