@@ -159,6 +159,11 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 
 	new_value = !!scan_value;
 
+	if (strstr(saved_command_line, "androidboot.selinux=permissive")) {
+		pr_warn("SELinux: Force permissive as requested\n");
+		new_value = 0;
+	}
+
 	old_value = enforcing_enabled();
 	if (new_value != old_value) {
 		length = avc_has_perm(current_sid(), SECINITSID_SECURITY,
