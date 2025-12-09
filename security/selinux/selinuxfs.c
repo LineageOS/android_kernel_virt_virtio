@@ -133,6 +133,19 @@ static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 }
 
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
+bool force_permissive = false;
+
+static int __init androidboot_selinux_setup(char *line)
+{
+	if (!strcmp(line, "permissive")) {
+		pr_warn("SELinux: Force permissive as requested\n");
+		force_permissive = true;
+	}
+        return 1;
+}
+
+__setup("androidboot.selinux=", androidboot_selinux_setup);
+
 static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 
@@ -158,6 +171,8 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 		goto out;
 
 	new_value = !!scan_value;
+	if (force_permissive)
+		new_value = 0;
 
 	old_value = enforcing_enabled();
 	if (new_value != old_value) {
