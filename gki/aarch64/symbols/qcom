@@ -1317,6 +1317,7 @@
   gunyah_hypercall_vcpu_run
   gunyah_qtvm_register_notifier
   gunyah_qtvm_unregister_notifier
+  gunyah_reclaim_fw_parcel
   gunyah_rm_call
   gunyah_rm_notifier_register
   gunyah_rm_notifier_unregister
@@ -3337,6 +3338,7 @@
   trace_event_reg
   trace_get_event_file
   trace_handle_return
+  __traceiter_android_rvh___set_task_cpu
   __traceiter_android_rvh_account_irq
   __traceiter_android_rvh_after_dequeue_task
   __traceiter_android_rvh_after_enqueue_task
@@ -3367,6 +3369,7 @@
   __traceiter_android_rvh_get_nohz_timer_target
   __traceiter_android_rvh_gh_after_vcpu_run
   __traceiter_android_rvh_gh_before_vcpu_run
+  __traceiter_android_rvh_gh_note_fw_parcel
   __traceiter_android_rvh_gh_vcpu_release
   __traceiter_android_rvh_gh_vm_release
   __traceiter_android_rvh_gic_v3_set_affinity
@@ -3483,6 +3486,7 @@
   __traceiter_suspend_resume
   __traceiter_xdp_exception
   trace_output_call
+  __tracepoint_android_rvh___set_task_cpu
   __tracepoint_android_rvh_account_irq
   __tracepoint_android_rvh_after_dequeue_task
   __tracepoint_android_rvh_after_enqueue_task
@@ -3513,6 +3517,7 @@
   __tracepoint_android_rvh_get_nohz_timer_target
   __tracepoint_android_rvh_gh_after_vcpu_run
   __tracepoint_android_rvh_gh_before_vcpu_run
+  __tracepoint_android_rvh_gh_note_fw_parcel
   __tracepoint_android_rvh_gh_vcpu_release
   __tracepoint_android_rvh_gh_vm_release
   __tracepoint_android_rvh_gic_v3_set_affinity
