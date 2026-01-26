@@ -212,6 +212,13 @@ DECLARE_HOOK(android_vh_cache_show,
 DECLARE_HOOK(android_vh_free_unref_page_bypass,
 	TP_PROTO(struct page *page, int order, int migratetype, bool *bypass),
 	TP_ARGS(page, order, migratetype, bypass));
+DECLARE_HOOK(android_vh_folios_put_refs_direct_free,
+	TP_PROTO(struct folio *folio, unsigned int nr_refs,
+		 struct lruvec **lruvec, bool *direct_free),
+	TP_ARGS(folio, nr_refs, lruvec, direct_free));
+DECLARE_HOOK(android_vh_free_pages_and_swap_cache,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
 DECLARE_HOOK(android_vh_kvmalloc_node_use_vmalloc,
 	TP_PROTO(size_t size, gfp_t *kmalloc_flags, bool *use_vmalloc),
 	TP_ARGS(size, kmalloc_flags, use_vmalloc));
@@ -677,6 +684,9 @@ DECLARE_HOOK(android_vh_exit_oom_victim,
 DECLARE_HOOK(android_vh_oom_killer_disable,
 	TP_PROTO(int oom_victims),
 	TP_ARGS(oom_victims));
+DECLARE_HOOK(android_vh_smaps_rollup_contended,
+	TP_PROTO(int map_count, int nr_contended, int *ret),
+	TP_ARGS(map_count, nr_contended, ret));
 DECLARE_HOOK(android_vh_migration_entry_wait_enter,
 	TP_PROTO(swp_entry_t entry, u64 *time, int *zonenum),
 	TP_ARGS(entry, time, zonenum));
@@ -690,6 +700,19 @@ DECLARE_HOOK(android_vh_migrate_pages_batch_break,
 DECLARE_HOOK(android_vh_migrate_batch_nr_pages,
 	TP_PROTO(struct list_head *head, int *nr_pages),
 	TP_ARGS(head, nr_pages));
+DECLARE_RESTRICTED_HOOK(android_rvh_gup_longterm_locked,
+	TP_PROTO(long rc, long nr_pinned_pages,
+		unsigned long start, unsigned long nr_pages,
+		struct page **pages),
+	TP_ARGS(rc, nr_pinned_pages, start, nr_pages, pages), 5);
+DECLARE_HOOK(android_vh_folio_add_file_rmap,
+	TP_PROTO(struct folio *folio, struct page *page, int nr_pages,
+		 int level),
+	TP_ARGS(folio, page, nr_pages, level));
+DECLARE_HOOK(android_vh_folio_remove_rmap,
+	TP_PROTO(struct folio *folio, struct page *page, int nr_pages,
+		 int level),
+	TP_ARGS(folio, page, nr_pages, level));
 #endif /* _TRACE_HOOK_MM_H */
 
 /* This part must be outside protection */

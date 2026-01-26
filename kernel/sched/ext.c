@@ -1054,9 +1054,18 @@ static struct scx_dispatch_q *find_global_dsq(struct task_struct *p)
 	return global_dsqs[cpu_to_node(task_cpu(p))];
 }
 
-static struct scx_dispatch_q *find_user_dsq(u64 dsq_id)
+struct scx_dispatch_q *find_user_dsq(u64 dsq_id)
 {
 	return rhashtable_lookup_fast(&dsq_hash, &dsq_id, dsq_hash_params);
+}
+EXPORT_SYMBOL_GPL(find_user_dsq);
+
+static const struct sched_class *scx_setscheduler_class(struct task_struct *p)
+{
+	if (p->sched_class == &stop_sched_class)
+		return &stop_sched_class;
+
+	return __setscheduler_class(p->policy, p->prio);
 }
 
 /*
@@ -1674,6 +1683,8 @@ static void dispatch_enqueue(struct scx_dispatch_q *dsq, struct task_struct *p,
 			     u64 enq_flags)
 {
 	bool is_local = dsq->id == SCX_DSQ_LOCAL;
+	bool enq_priq = false;
+	struct rq *rq = task_rq(p);
 
 	WARN_ON_ONCE(p->scx.dsq || !list_empty(&p->scx.dsq_list.node));
 	WARN_ON_ONCE((p->scx.dsq_flags & SCX_TASK_DSQ_ON_PRIQ) ||
@@ -1703,7 +1714,8 @@ static void dispatch_enqueue(struct scx_dispatch_q *dsq, struct task_struct *p,
 		enq_flags &= ~SCX_ENQ_DSQ_PRIQ;
 	}
 
-	if (enq_flags & SCX_ENQ_DSQ_PRIQ) {
+	trace_android_vh_enq_to_priq(rq, dsq, p, &enq_priq);
+	if ((enq_flags & SCX_ENQ_DSQ_PRIQ) || enq_priq) {
 		struct rb_node *rbp;
 
 		/*
@@ -2499,6 +2511,7 @@ static struct rq *move_task_between_dsqs(struct task_struct *p, u64 enq_flags,
 static bool consume_dispatch_q(struct rq *rq, struct scx_dispatch_q *dsq)
 {
 	struct task_struct *p;
+	bool disallow = false;
 retry:
 	/*
 	 * The caller can't expect to successfully consume a task if the task's
@@ -2512,6 +2525,9 @@ retry:
 
 	nldsq_for_each_task(p, dsq) {
 		struct rq *task_rq = task_rq(p);
+		trace_android_vh_scx_task_can_run_on(&disallow, p, rq);
+		if (disallow)
+			continue;
 
 		if (rq == task_rq) {
 			task_unlink_from_dsq(p, dsq);
@@ -4613,6 +4629,7 @@ static void scx_ops_disable_workfn(struct kthread_work *work)
 	struct rhashtable_iter rht_iter;
 	struct scx_dispatch_q *dsq;
 	int i, kind;
+	int repeat = 0;
 
 	kind = atomic_read(&scx_exit_kind);
 	while (true) {
@@ -4673,13 +4690,19 @@ static void scx_ops_disable_workfn(struct kthread_work *work)
 
 	scx_ops_init_task_enabled = false;
 
+repeat_iter:
 	scx_task_iter_start(&sti);
 	while ((p = scx_task_iter_next_locked(&sti))) {
 		const struct sched_class *old_class = p->sched_class;
-		const struct sched_class *new_class =
-			__setscheduler_class(p->policy, p->prio);
+		const struct sched_class *new_class = scx_setscheduler_class(p);
 		struct sched_enq_and_set_ctx ctx;
+		bool skip = false;
 
+		trace_android_vh_scx_switch_repeat_skip(p, &skip, &repeat);
+		if (skip)
+			continue;
+
+		trace_android_vh_setscheduler_class(&new_class, NULL, p, p->policy, p->prio);
 		if (old_class != new_class && p->se.sched_delayed)
 			dequeue_task(task_rq(p), p, DEQUEUE_SLEEP | DEQUEUE_DELAYED);
 
@@ -4695,6 +4718,10 @@ static void scx_ops_disable_workfn(struct kthread_work *work)
 		scx_ops_exit_task(p);
 	}
 	scx_task_iter_stop(&sti);
+	if (repeat > 0) {
+		repeat++;
+		goto repeat_iter;
+	}
 	percpu_up_write(&scx_fork_rwsem);
 
 	/* no task is on scx, turn off all the switches and flush in-progress calls */
@@ -5077,6 +5104,7 @@ static void scx_ops_error_irq_workfn(struct irq_work *irq_work)
 	if (ei->kind >= SCX_EXIT_ERROR)
 		scx_dump_state(ei, scx_ops.exit_dump_len);
 
+	trace_android_vh_scx_exit_on_abnormal(ei);
 	schedule_scx_ops_disable_work();
 }
 
@@ -5161,6 +5189,7 @@ static int scx_ops_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 	struct task_struct *p;
 	unsigned long timeout;
 	int i, cpu, node, ret;
+	int repeat = 0;
 
 	if (!cpumask_equal(housekeeping_cpumask(HK_TYPE_DOMAIN),
 			   cpu_possible_mask)) {
@@ -5393,16 +5422,22 @@ static int scx_ops_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 	 * scx_tasks_lock.
 	 */
 	percpu_down_write(&scx_fork_rwsem);
+
+repeat_iter:
 	scx_task_iter_start(&sti);
 	while ((p = scx_task_iter_next_locked(&sti))) {
 		const struct sched_class *old_class = p->sched_class;
-		const struct sched_class *new_class =
-			__setscheduler_class(p->policy, p->prio);
+		const struct sched_class *new_class = scx_setscheduler_class(p);
 		struct sched_enq_and_set_ctx ctx;
+		bool skip = false;
 
+		trace_android_vh_setscheduler_class(&new_class, NULL, p, p->policy, p->prio);
 		if (!tryget_task_struct(p))
 			continue;
 
+		trace_android_vh_scx_switch_repeat_skip(p, &skip, &repeat);
+		if (skip)
+			continue;
 		if (old_class != new_class && p->se.sched_delayed)
 			dequeue_task(task_rq(p), p, DEQUEUE_SLEEP | DEQUEUE_DELAYED);
 
@@ -5419,6 +5454,10 @@ static int scx_ops_enable(struct sched_ext_ops *ops, struct bpf_link *link)
 		put_task_struct(p);
 	}
 	scx_task_iter_stop(&sti);
+	if (repeat > 0) {
+		repeat++;
+		goto repeat_iter;
+	}
 	percpu_up_write(&scx_fork_rwsem);
 
 	scx_ops_bypass(false);

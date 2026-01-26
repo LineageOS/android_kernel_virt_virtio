@@ -2600,6 +2600,7 @@
   drm_crtc_vblank_on
   drm_crtc_vblank_put
   drm_debugfs_create_files
+  drm_debugfs_remove_files
   drm_edid_read_custom
   drm_encoder_cleanup
   drm_encoder_init
@@ -2675,6 +2676,7 @@
   drm_property_replace_blob
   __drm_puts_seq_file
   drm_rect_calc_hscale
+  drm_rect_calc_vscale
   drm_self_refresh_helper_cleanup
   drm_self_refresh_helper_init
   drm_send_event_locked

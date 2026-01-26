@@ -4733,6 +4733,7 @@ int try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 
 	wake_flags |= WF_TTWU;
 
+	trace_android_rvh_try_to_wake_up_begin(p, state, &wake_flags);
 	if (p == current) {
 		/*
 		 * We're waking current, this means 'p->on_rq' and 'task_cpu(p)
@@ -5331,6 +5332,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 
 	scx_pre_fork(p);
 
+	trace_android_vh_setscheduler_class(NULL, &should_scx, p, p->policy, p->prio);
 	trace_android_vh_task_should_scx(&should_scx, p->policy, p->prio);
 	if (rt_prio(p->prio) && !should_scx) {
 		p->sched_class = &rt_sched_class;
@@ -6655,8 +6657,6 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 		if (unlikely(p == RETRY_TASK))
 			goto restart;
 
-		trace_android_vh_chk_task(&p, rq);
-
 		/* Assume the next prioritized class is idle_sched_class */
 		if (!p) {
 			p = pick_task_idle(rq);
@@ -6672,12 +6672,10 @@ restart:
 	for_each_active_class(class) {
 		if (class->pick_next_task) {
 			p = class->pick_next_task(rq, prev);
-			trace_android_vh_chk_task(&p, rq);
 			if (p)
 				return p;
 		} else {
 			p = class->pick_task(rq);
-			trace_android_vh_chk_task(&p, rq);
 			if (p) {
 				put_prev_set_next_task(rq, prev, p);
 				return p;
@@ -8313,6 +8311,7 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 
 	prev_class = p->sched_class;
 	next_class = __setscheduler_class(p->policy, prio);
+	trace_android_vh_setscheduler_class(&next_class, NULL, p, p->policy, prio);
 
 	if (prev_class != next_class && p->se.sched_delayed)
 		dequeue_task(rq, p, DEQUEUE_SLEEP | DEQUEUE_DELAYED | DEQUEUE_NOCLOCK);

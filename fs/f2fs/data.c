@@ -1476,7 +1476,6 @@ static int __allocate_data_block(struct dnode_of_data *dn, int seg_type)
 
 static void f2fs_map_lock(struct f2fs_sb_info *sbi, int flag)
 {
-	f2fs_down_read(&sbi->cp_enable_rwsem);
 	if (flag == F2FS_GET_BLOCK_PRE_AIO)
 		f2fs_down_read(&sbi->node_change);
 	else
@@ -1489,7 +1488,6 @@ static void f2fs_map_unlock(struct f2fs_sb_info *sbi, int flag)
 		f2fs_up_read(&sbi->node_change);
 	else
 		f2fs_unlock_op(sbi);
-	f2fs_up_read(&sbi->cp_enable_rwsem);
 }
 
 int f2fs_get_block_locked(struct dnode_of_data *dn, pgoff_t index)
@@ -2423,7 +2421,8 @@ static struct f2fs_folio_state *ffs_find_or_alloc(struct folio *folio)
 	if (ffs)
 		return ffs;
 
-	ffs = f2fs_kmem_cache_alloc(ffs_entry_slab, GFP_NOIO, true, NULL);
+	ffs = f2fs_kmem_cache_alloc(ffs_entry_slab,
+			GFP_NOIO | __GFP_ZERO, true, NULL);
 
 	spin_lock_init(&ffs->state_lock);
 	folio_attach_private(folio, ffs);
@@ -2520,6 +2519,18 @@ got_it:
 			continue;
 		}
 
+		/* We must increment read_pages_pending before possible BIOs submitting
+		 * to prevent from premature folio_end_read() call on folio
+		 */
+		if (folio_test_large(folio)) {
+			ffs = ffs_find_or_alloc(folio);
+
+			/* set the bitmap to wait */
+			spin_lock_irq(&ffs->state_lock);
+			ffs->read_pages_pending++;
+			spin_unlock_irq(&ffs->state_lock);
+		}
+
 		/*
 		 * This page will go to BIO.  Do we need to send this
 		 * BIO off first?
@@ -2546,15 +2557,6 @@ submit_and_realloc:
 		if (!bio_add_folio(bio, folio, F2FS_BLKSIZE,
 					offset << PAGE_SHIFT))
 			goto submit_and_realloc;
-
-		if (folio_test_large(folio)) {
-			ffs = ffs_find_or_alloc(folio);
-
-			/* set the bitmap to wait */
-			spin_lock_irq(&ffs->state_lock);
-			ffs->read_pages_pending++;
-			spin_unlock_irq(&ffs->state_lock);
-		}
 
 		inc_page_count(F2FS_I_SB(inode), F2FS_RD_DATA);
 		f2fs_update_iostat(F2FS_I_SB(inode), NULL, FS_DATA_READ_IO,
@@ -3500,6 +3502,19 @@ static inline bool __should_serialize_io(struct inode *inode,
 	return false;
 }
 
+static inline void account_writeback(struct inode *inode, bool inc)
+{
+	if (!f2fs_sb_has_compression(F2FS_I_SB(inode)))
+		return;
+
+	f2fs_down_read(&F2FS_I(inode)->i_sem);
+	if (inc)
+		atomic_inc(&F2FS_I(inode)->writeback);
+	else
+		atomic_dec(&F2FS_I(inode)->writeback);
+	f2fs_up_read(&F2FS_I(inode)->i_sem);
+}
+
 static int __f2fs_write_data_pages(struct address_space *mapping,
 						struct writeback_control *wbc,
 						enum iostat_type io_type)
@@ -3545,9 +3560,13 @@ static int __f2fs_write_data_pages(struct address_space *mapping,
 		locked = true;
 	}
 
+	account_writeback(inode, true);
+
 	blk_start_plug(&plug);
 	ret = f2fs_write_cache_pages(mapping, wbc, io_type);
 	blk_finish_plug(&plug);
+
+	account_writeback(inode, false);
 
 	if (locked)
 		mutex_unlock(&sbi->writepages);

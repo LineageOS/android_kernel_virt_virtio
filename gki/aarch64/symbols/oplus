@@ -2,6 +2,7 @@
   address_space_init_once
   alarm_start
   backing_file_open
+  backing_file_user_path
   backing_tmpfile_open
   bio_add_page
   bio_associate_blkg
@@ -296,11 +297,15 @@
   __traceiter_android_vh_move_entity
   __traceiter_android_vh_scx_restore_flags
   __traceiter_android_vh_task_should_scx
+  __traceiter_android_vh_enq_to_priq
+  __traceiter_android_vh_scx_switch_repeat_skip
   __traceiter_android_vh_scx_ops_consider_migration
   __traceiter_android_vh_scx_fix_prev_slice
   __traceiter_android_vh_scx_ops_enable_state
   __traceiter_android_vh_scx_enabled
   __traceiter_android_vh_scx_set_cpus_allowed
+  __traceiter_android_vh_scx_task_can_run_on
+  __traceiter_android_vh_scx_exit_on_abnormal
   __traceiter_android_vh_scx_task_switch_finish
   __traceiter_android_vh_cgroup_set_task
   __traceiter_android_vh_check_folio_look_around_ref
@@ -364,6 +369,7 @@
   __traceiter_android_vh_save_track_hash
   __traceiter_android_vh_sched_move_task
   __traceiter_android_vh_sched_setaffinity_early
+  __traceiter_android_vh_setscheduler_class
   __traceiter_android_vh_tick_nohz_idle_stop_tick
   __traceiter_android_vh_should_alloc_pages_retry
   __traceiter_android_vh_show_stack_hash
@@ -375,6 +381,7 @@
   __traceiter_android_vh_tune_mmap_readaround
   __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_tune_inactive_ratio
+  __traceiter_android_vh_mem_cgroup_flush_stats_bypass
   __traceiter_android_vh_unreserve_highatomic_bypass
   __traceiter_android_vh_vmscan_kswapd_done
   __traceiter_android_vh_page_cache_ra_order_bypass
@@ -441,11 +448,15 @@
   __tracepoint_android_vh_move_entity
   __tracepoint_android_vh_scx_restore_flags
   __tracepoint_android_vh_task_should_scx
+  __tracepoint_android_vh_enq_to_priq
+  __tracepoint_android_vh_scx_switch_repeat_skip
   __tracepoint_android_vh_scx_ops_consider_migration
   __tracepoint_android_vh_scx_fix_prev_slice
   __tracepoint_android_vh_scx_ops_enable_state
   __tracepoint_android_vh_scx_enabled
   __tracepoint_android_vh_scx_set_cpus_allowed
+  __tracepoint_android_vh_scx_task_can_run_on
+  __tracepoint_android_vh_scx_exit_on_abnormal
   __tracepoint_android_vh_scx_task_switch_finish
   __tracepoint_android_vh_cgroup_set_task
   __tracepoint_android_vh_check_folio_look_around_ref
@@ -509,6 +520,7 @@
   __tracepoint_android_vh_save_vmalloc_stack
   __tracepoint_android_vh_sched_move_task
   __tracepoint_android_vh_sched_setaffinity_early
+  __tracepoint_android_vh_setscheduler_class
   __tracepoint_android_vh_tick_nohz_idle_stop_tick
   __tracepoint_android_vh_should_alloc_pages_retry
   __tracepoint_android_vh_show_stack_hash
@@ -520,6 +532,7 @@
   __tracepoint_android_vh_tune_mmap_readaround
   __tracepoint_android_vh_tune_swappiness
   __tracepoint_android_vh_tune_inactive_ratio
+  __tracepoint_android_vh_mem_cgroup_flush_stats_bypass
   __tracepoint_android_vh_unreserve_highatomic_bypass
   __tracepoint_android_vh_vmscan_kswapd_done
   __tracepoint_android_vh_page_cache_ra_order_bypass
