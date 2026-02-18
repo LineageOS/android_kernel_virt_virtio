@@ -739,6 +739,7 @@ static int __remove_mapping(struct address_space *mapping, struct folio *folio,
 	BUG_ON(!folio_test_locked(folio));
 	BUG_ON(mapping != folio_mapping(folio));
 
+	trace_android_vh_remove_mapping(mapping, folio, reclaimed);
 	if (!folio_test_swapcache(folio))
 		spin_lock(&mapping->host->i_lock);
 	xa_lock_irq(&mapping->i_pages);
@@ -831,6 +832,7 @@ cannot_free:
 	xa_unlock_irq(&mapping->i_pages);
 	if (!folio_test_swapcache(folio))
 		spin_unlock(&mapping->host->i_lock);
+	trace_android_vh_remove_mapping_failed(mapping, folio, reclaimed);
 	return 0;
 }
 
@@ -1911,6 +1913,7 @@ bool folio_isolate_lru(struct folio *folio)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(folio_isolate_lru);
 
 /*
  * A direct reclaimer may isolate SWAP_CLUSTER_MAX pages from the LRU list and
