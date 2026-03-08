@@ -82,6 +82,7 @@
 #include <trace/hooks/dmv_debug.h>
 #include <trace/hooks/vb2.h>
 #include <trace/hooks/rcu.h>
+#include <trace/hooks/dwc3.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -249,6 +250,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_revert_creds);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_mmap_file);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_file_open);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_gic_v3_suspend);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_gic_set_affinity);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dc_send_copy);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dc_receive);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_bpf_syscall);
@@ -590,6 +592,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_clear_rwsem_writer_owned);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rwsem_read_trylock_failed);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_compaction_exit);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_compaction_try_to_compact_exit);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_compact_bypass);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_compact_finished);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mm_direct_reclaim_enter);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mm_direct_reclaim_exit);
@@ -712,3 +715,8 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swapin_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swapin_end);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swap_writepage_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swap_writepage_end);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dwc3_core_soft_reset);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dwc3_xhci_soft_reset);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cma_release_bypass);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cma_alloc_end);
+
