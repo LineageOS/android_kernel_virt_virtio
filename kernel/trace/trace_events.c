@@ -677,6 +677,8 @@ int trace_event_reg(struct trace_event_call *call,
 
 #ifdef CONFIG_PERF_EVENTS
 	case TRACE_REG_PERF_REGISTER:
+		if (!call->class->perf_probe)
+			return -ENODEV;
 		return tracepoint_probe_register(call->tp,
 						 call->class->perf_probe,
 						 call);
@@ -2821,7 +2823,10 @@ __register_event(struct trace_event_call *call, struct module *mod)
 	if (ret < 0)
 		return ret;
 
+	down_write(&trace_event_sem);
 	list_add(&call->list, &ftrace_events);
+	up_write(&trace_event_sem);
+
 	if (call->flags & TRACE_EVENT_FL_DYNAMIC)
 		atomic_set(&call->refcnt, 0);
 	else
@@ -3070,11 +3075,8 @@ trace_create_new_event(struct trace_event_call *call,
 	struct trace_pid_list *pid_list;
 	struct trace_event_file *file;
 	unsigned int first;
-	struct trace_array_ext *tr_ext = container_of(tr,
-						      struct trace_array_ext,
-						      trace_array);
 
-	if (!event_in_systems(call, tr_ext->system_names))
+	if (!event_in_systems(call, trace_array_get_system_names(tr)))
 		return NULL;
 
 	file = kmem_cache_alloc(file_cachep, GFP_TRACE);
@@ -3401,6 +3403,8 @@ __trace_add_event_dirs(struct trace_array *tr)
 {
 	struct trace_event_call *call;
 	int ret;
+
+	lockdep_assert_held(&trace_event_sem);
 
 	list_for_each_entry(call, &ftrace_events, list) {
 		ret = __trace_add_new_event(call, tr);
