@@ -43,6 +43,7 @@
   __arch_copy_from_user
   __arch_copy_to_user
   arch_freq_scale
+  arch_invalidate_pmem
   arch_stack_walk
   arch_timer_read_counter
   argv_free
@@ -733,6 +734,7 @@
   dev_pm_qos_remove_notifier
   dev_pm_qos_remove_request
   dev_pm_qos_update_request
+  dev_pm_set_dedicated_wake_irq
   dev_pm_set_wake_irq
   _dev_printk
   __dev_queue_xmit
@@ -962,6 +964,7 @@
   drm_edid_is_valid
   drm_edid_raw
   drm_edid_read_ddc
+  drm_edid_to_speaker_allocation
   drm_encoder_cleanup
   drm_encoder_init
   __drm_err
@@ -1248,6 +1251,7 @@
   get_net_ns_by_pid
   get_option
   get_page_owner_handle
+  get_phy_device
   get_pid_task
   get_random_bytes
   get_random_u16
@@ -1994,6 +1998,7 @@
   __netdev_alloc_skb
   netdev_change_features
   netdev_err
+  netdev_features_change
   netdev_increment_features
   netdev_info
   netdev_lower_state_changed
@@ -2095,6 +2100,7 @@
   ns_to_timespec64
   n_tty_ioctl_helper
   __num_online_cpus
+  nvmem_add_one_cell
   nvmem_cell_get
   nvmem_cell_put
   nvmem_cell_read
@@ -2104,6 +2110,10 @@
   nvmem_cell_write
   nvmem_device_read
   nvmem_device_write
+  __nvmem_layout_driver_register
+  nvmem_layout_driver_unregister
+  nvmem_layout_register
+  nvmem_layout_unregister
   of_address_to_resource
   of_alias_from_compatible
   of_alias_get_id
@@ -2151,6 +2161,7 @@
   of_get_child_by_name
   of_get_cpu_node
   of_get_mac_address
+  of_get_mac_address_nvmem
   of_get_named_gpio
   of_get_next_available_child
   of_get_next_child
@@ -2181,6 +2192,7 @@
   of_n_addr_cells
   of_node_name_eq
   of_n_size_cells
+  of_nvmem_layout_get_container
   __of_parse_phandle_with_args
   of_pci_parse_bus_range
   of_phandle_iterator_init
@@ -2267,6 +2279,7 @@
   pci_ecam_map_bus
   pcie_capability_clear_and_set_word_unlocked
   pcie_capability_read_word
+  pcie_capability_write_word
   pci_enable_device
   pci_find_ext_capability
   pci_find_vsec_capability
@@ -2333,6 +2346,8 @@
   phy_attached_info
   phy_calibrate
   phy_connect
+  phy_device_free
+  phy_device_register
   phy_disconnect
   phy_do_ioctl_running
   phy_drivers_register
@@ -2347,6 +2362,7 @@
   phy_init
   phy_init_eee
   phy_init_hw
+  phy_lookup_setting
   phylink_connect_phy
   phylink_create
   phylink_destroy
@@ -3468,6 +3484,7 @@
   __traceiter_android_vh_show_resume_epoch_val
   __traceiter_android_vh_show_suspend_epoch_val
   __traceiter_android_vh_skip_swap_map_write
+  __traceiter_android_vh_snd_pcm_check_no_buffer
   __traceiter_android_vh_switching_to_scx
   __traceiter_android_vh_thermal_pm_notify_suspend
   __traceiter_android_vh_timer_calc_index
@@ -3630,6 +3647,7 @@
   __tracepoint_android_vh_ufs_update_sdev
   __tracepoint_android_vh_update_topology_flags_workfn
   __tracepoint_android_vh_xhci_handle_offload
+  __tracepoint_android_vh_snd_pcm_check_no_buffer
   __tracepoint_binder_transaction_received
   __tracepoint_cpu_frequency_limits
   __tracepoint_cpu_idle
@@ -4039,6 +4057,8 @@
   vmalloc_to_page
   vmalloc_to_pfn
   vmap
+  vmap_pages_range_noflush
+  __vmap_pages_range_noflush
   vmemdup_user
   vmf_insert_mixed
   vmf_insert_pfn
