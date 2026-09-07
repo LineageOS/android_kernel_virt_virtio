@@ -449,7 +449,7 @@ static int smmu_domain_finalise(struct hyp_arm_smmu_v3_device_pv *smmu,
 		cfg = (struct io_pgtable_cfg) {
 			.pgsize_bitmap = smmu->common.pgsize_bitmap,
 			.ias = min_t(unsigned long, ias, VA_BITS),
-			.oas = smmu->common.ias,
+			.oas = smmu->common.oas,
 			.coherent_walk = smmu->common.features & ARM_SMMU_FEAT_COHERENCY,
 			.tlb = &smmu_tlb_ops,
 			.put_pages = smmu_put_pages,
@@ -458,7 +458,7 @@ static int smmu_domain_finalise(struct hyp_arm_smmu_v3_device_pv *smmu,
 		fmt = ARM_64_LPAE_S2;
 		cfg = (struct io_pgtable_cfg) {
 			.pgsize_bitmap = smmu->common.pgsize_bitmap,
-			.ias = smmu->common.ias,
+			.ias = smmu->common.oas,
 			.oas = smmu->common.oas,
 			.coherent_walk = smmu->common.features & ARM_SMMU_FEAT_COHERENCY,
 			.tlb = &smmu_tlb_ops,
@@ -780,6 +780,12 @@ static int smmu_set_identity(pkvm_handle_t iommu, pkvm_handle_t sid,
 	struct arm_smmu_ste *dst;
 	struct arm_smmu_ste ste = {};
 	int ret, i;
+	struct arm_smmu_cmdq_ent cmd = {
+		.opcode = CMDQ_OP_TLBI_S12_VMALL,
+		.tlbi = {
+			.vmid = 0,
+		},
+	};
 
 	if (!smmu)
 		return -ENODEV;
@@ -831,8 +837,11 @@ static int smmu_set_identity(pkvm_handle_t iommu, pkvm_handle_t sid,
 		smmu->idmap_ref--;
 	}
 
-	ret = smmu_sync_ste(smmu, dst->data, sid);
-	WARN_ON(ret);
+	WARN_ON(smmu_sync_ste(smmu, dst->data, sid));
+	/* If last SMMU make sure TLBs are empty. */
+	if (!smmu->idmap_ref)
+		WARN_ON(smmu_send_cmd(smmu, &cmd));
+
 out_unlock:
 	kvm_smmu_unlock(&smmu->common);
 	return ret;
@@ -842,7 +851,7 @@ out_unlock:
 static int smmu_dev_block_dma(pkvm_handle_t iommu, u32 sid, bool is_host2guest)
 {
 	struct hyp_arm_smmu_v3_device_pv *smmu = smmu_id_to_ptr(iommu);
-	static struct arm_smmu_ste *dst;
+	struct arm_smmu_ste *dst;
 	int ret = 0;
 
 
@@ -968,7 +977,7 @@ static phys_addr_t smmu_iova_to_phys(struct kvm_hyp_iommu_domain *domain,
 	struct io_pgtable *pgtable = smmu_domain->pgtable;
 
 	if (!pgtable)
-		return -EINVAL;
+		return 0;
 
 	hyp_spin_lock(&smmu_domain->pgt_lock);
 	paddr = pgtable->ops.iova_to_phys(&pgtable->ops, iova);
@@ -1444,7 +1453,7 @@ static int smmu_init_idmap(void)
 	struct io_pgtable_ops *ops;
 
 	for_each_smmu(smmu) {
-		cfg.ias = min(cfg.ias, smmu->common.ias);
+		cfg.ias = min(cfg.ias, smmu->common.oas);
 		cfg.oas = min(cfg.oas, smmu->common.oas);
 		cfg.pgsize_bitmap &= smmu->common.pgsize_bitmap;
 		cfg.coherent_walk &= !!(smmu->common.features & ARM_SMMU_FEAT_COHERENCY);

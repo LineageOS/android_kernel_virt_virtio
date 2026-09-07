@@ -194,38 +194,51 @@ static void __host_stage2_free(void *virt, void *arg, unsigned long order) { WAR
 static void __init pkvm_host_stage2_drain(void) { }
 #endif
 
+static int __init add_hyp_memblock_region(const struct memblock_region *reg)
+{
+	if (*hyp_memblock_nr_ptr >= HYP_MEMBLOCK_REGIONS)
+		return -ENOMEM;
+
+	hyp_memory[*hyp_memblock_nr_ptr] = *reg;
+	(*hyp_memblock_nr_ptr)++;
+
+	return 0;
+}
+
 static int __init register_memblock_regions(void)
 {
+	struct memblock_region pvmfw_reg = {
+		.base	= pvmfw_base,
+		.size	= pvmfw_size,
+		.flags	= MEMBLOCK_NOMAP,
+	};
 	struct memblock_region *reg;
-	bool pvmfw_in_mem = false;
+	bool pvmfw_registered = !pvmfw_size;
+	int ret;
 
 	for_each_mem_region(reg) {
-		if (*hyp_memblock_nr_ptr >= HYP_MEMBLOCK_REGIONS)
-			return -ENOMEM;
+		/* EL2 binary-searches hyp_memory, so insert pvmfw in address order. */
+		if (!pvmfw_registered && pvmfw_base < reg->base + reg->size) {
+			if (memblock_addrs_overlap(reg->base, reg->size, pvmfw_base, pvmfw_size)) {
+				/* If the pvmfw region overlaps a memblock, it must be a subset */
+				if (pvmfw_base < reg->base ||
+				    (pvmfw_base + pvmfw_size) > (reg->base + reg->size))
+					return -EINVAL;
+			} else {
+				ret = add_hyp_memblock_region(&pvmfw_reg);
+				if (ret)
+					return ret;
+			}
+			pvmfw_registered = true;
+		}
 
-		hyp_memory[*hyp_memblock_nr_ptr] = *reg;
-		(*hyp_memblock_nr_ptr)++;
-
-		if (!pvmfw_size || pvmfw_in_mem ||
-			!memblock_addrs_overlap(reg->base, reg->size, pvmfw_base, pvmfw_size))
-			continue;
-		/* If the pvmfw region overlaps a memblock, it must be a subset */
-		if (pvmfw_base < reg->base || (pvmfw_base + pvmfw_size) > (reg->base + reg->size))
-			return -EINVAL;
-		pvmfw_in_mem = true;
+		ret = add_hyp_memblock_region(reg);
+		if (ret)
+			return ret;
 	}
 
-	if (pvmfw_size && !pvmfw_in_mem) {
-		if (*hyp_memblock_nr_ptr >= HYP_MEMBLOCK_REGIONS)
-			return -ENOMEM;
-
-		hyp_memory[*hyp_memblock_nr_ptr] = (struct memblock_region) {
-			.base   = pvmfw_base,
-			.size   = pvmfw_size,
-			.flags  = MEMBLOCK_NOMAP,
-		};
-		(*hyp_memblock_nr_ptr)++;
-	}
+	if (!pvmfw_registered)
+		return add_hyp_memblock_region(&pvmfw_reg);
 
 	return 0;
 }
@@ -339,8 +352,6 @@ static int __init early_hyp_lm_size_mb_cfg(char *arg)
 	return kstrtoull(arg, 10, &kvm_nvhe_sym(hyp_lm_size_mb));
 }
 early_param("kvm-arm.hyp_lm_size_mb", early_hyp_lm_size_mb_cfg);
-
-DEFINE_STATIC_KEY_FALSE(kvm_ffa_unmap_on_lend);
 
 static int __init early_ffa_max_nr_constituents(char *arg)
 {
@@ -2063,7 +2074,21 @@ int __pkvm_handle_smccc_req(struct arm_smccc_res *res, void *arg)
 
 static int early_ffa_unmap_on_lend_cfg(char *arg)
 {
-	static_branch_enable(&kvm_ffa_unmap_on_lend);
+	bool enable;
+
+	if (!arg)
+		kvm_nvhe_sym(__pkvm_ffa_unmap_on_lend) = PKVM_FFA_UNMAP_ON_LEND_ON;
+	else if (!strcmp(arg, "full"))
+		kvm_nvhe_sym(__pkvm_ffa_unmap_on_lend) = PKVM_FFA_UNMAP_ON_LEND_FULL;
+	else {
+		if (!kstrtobool(arg, &enable)) {
+			kvm_nvhe_sym(__pkvm_ffa_unmap_on_lend) = enable;
+		} else {
+			kvm_err("kvm-arm.ffa-unmap-on-lend: Unknown argument '%s'\n", arg);
+			return -EINVAL;
+		}
+	}
+
 	return 0;
 }
 early_param("kvm-arm.ffa-unmap-on-lend", early_ffa_unmap_on_lend_cfg);

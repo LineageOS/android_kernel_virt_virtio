@@ -51,7 +51,12 @@ static void (*mask_serror)(void);
 
 int __pkvm_register_default_trap_handler(bool (*cb)(struct user_pt_regs *))
 {
-	return cmpxchg(&default_trap_handler, NULL, cb) ? -EBUSY : 0;
+	/*
+	 * Paired with smp_load_acquire(&default_trap_handler) in
+	 * handle_trap(). Ensure the module's stores before registration are
+	 * observed before the handler runs.
+	 */
+	return cmpxchg_release(&default_trap_handler, NULL, cb) ? -EBUSY : 0;
 }
 
 void __pkvm_unmask_serror(void)
@@ -1255,7 +1260,7 @@ static void handle___pkvm_host_split_guest(struct kvm_cpu_context *host_ctxt)
 	ret = __pkvm_host_split_guest(gfn, size, hyp_vcpu);
 
 out:
-	cpu_reg(host_ctxt, 1) = ret;
+	errno_to_smccc(ret, host_ctxt);
 }
 
 static void handle___kvm_adjust_pc(struct kvm_cpu_context *host_ctxt)
@@ -1637,7 +1642,7 @@ static void handle___pkvm_sync_ftrace(struct kvm_cpu_context *host_ctxt)
 {
 	DECLARE_REG(unsigned long, host_func_pg, host_ctxt, 1);
 
-	cpu_reg(host_ctxt, 1) = __pkvm_sync_ftrace(host_func_pg);
+	errno_to_smccc(__pkvm_sync_ftrace(host_func_pg), host_ctxt);
 }
 
 static void handle___pkvm_disable_ftrace(struct kvm_cpu_context *host_ctxt)
@@ -2001,7 +2006,7 @@ static void handle___pkvm_host_map_guest_mmio(struct kvm_cpu_context *host_ctxt)
 	ret = pkvm_host_map_guest_mmio(hyp_vcpu, pfn, gfn);
 
 out:
-	cpu_reg(host_ctxt, 1) = ret;
+	errno_to_smccc(ret, host_ctxt);
 }
 
 static void handle___pkvm_pviommu_attach(struct kvm_cpu_context *host_ctxt)
@@ -2214,7 +2219,9 @@ void handle_trap(struct kvm_cpu_context *host_ctxt)
 		handle_host_mem_abort(host_ctxt);
 		break;
 	default:
-		BUG_ON(!READ_ONCE(default_trap_handler) || !default_trap_handler(&host_ctxt->regs));
+		/* Acquire the handler published by __pkvm_register_default_trap_handler(). */
+		BUG_ON(!smp_load_acquire(&default_trap_handler) ||
+		       !default_trap_handler(&host_ctxt->regs));
 	}
 
 	__hyp_exit();
