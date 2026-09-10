@@ -290934,6 +290934,13 @@ function {
   parameter_id: 0x3a88a91e
 }
 function {
+  id: 0x958e52ea
+  return_type_id: 0x6720d32f
+  parameter_id: 0x23f09c34
+  parameter_id: 0x3f44b979
+  parameter_id: 0x3e10b518
+}
+function {
   id: 0x958f9102
   return_type_id: 0x6720d32f
   parameter_id: 0x23f09c34
@@ -334921,6 +334928,15 @@ elf_symbol {
   full_name: "sysctl_vals"
 }
 elf_symbol {
+  id: 0x92705587
+  name: "sysfs_add_file_to_group"
+  is_defined: true
+  symbol_type: FUNCTION
+  crc: 0xdfa5b1f1
+  type_id: 0x958e52ea
+  full_name: "sysfs_add_file_to_group"
+}
+elf_symbol {
   id: 0xeaa8ce46
   name: "sysfs_bin_attr_simple_read"
   is_defined: true
@@ -344520,6 +344536,7 @@ interface {
   symbol_id: 0xe072259b
   symbol_id: 0x2fd7f565
   symbol_id: 0x18d0dd21
+  symbol_id: 0x92705587
   symbol_id: 0xeaa8ce46
   symbol_id: 0x90640a71
   symbol_id: 0x5b711bcd
