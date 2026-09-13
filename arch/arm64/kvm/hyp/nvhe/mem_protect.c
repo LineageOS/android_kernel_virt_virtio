@@ -586,7 +586,7 @@ int __pkvm_guest_relinquish_to_host(struct pkvm_hyp_vcpu *vcpu,
 	}
 
 	if (pkvm_ipa_range_has_pvmfw(vm, ipa, ipa + PAGE_SIZE))
-		vm->kvm.arch.pkvm.pvmfw_load_addr = PVMFW_INVALID_LOAD_ADDR;
+		vm->pvmfw_relinquished = true;
 end:
 	guest_unlock_component(vm);
 	host_unlock_component();
@@ -750,6 +750,14 @@ bool addr_is_memory(phys_addr_t phys)
 	struct kvm_mem_range range;
 
 	return !!find_mem_range(phys, &range);
+}
+
+bool addr_is_hyp_text(phys_addr_t phys)
+{
+	phys_addr_t start = ALIGN_DOWN(__hyp_pa(__hyp_text_start), PAGE_SIZE);
+	phys_addr_t end = PAGE_ALIGN(__hyp_pa(__hyp_text_end));
+
+	return phys >= start && phys < end;
 }
 
 static bool is_in_mem_range(u64 addr, struct kvm_mem_range *range)
@@ -973,6 +981,14 @@ int host_stage2_set_owner_locked(phys_addr_t addr, u64 size, u8 owner_id)
 {
 	return __host_stage2_set_owner_locked(addr, size, owner_id, 0,
 					      addr_is_memory(addr) ? 0 : HOST_SET_IS_MMIO);
+}
+
+bool host_stage2_pte_is_hyp_owned(kvm_pte_t pte)
+{
+	if (kvm_pte_valid(pte))
+		return false;
+
+	return FIELD_GET(KVM_INVALID_PTE_OWNER_MASK, pte) == PKVM_ID_HYP;
 }
 
 static bool host_stage2_force_pte(u64 addr, u64 end, enum kvm_pgtable_prot prot)
@@ -2078,6 +2094,38 @@ unlock:
 	return ret;
 }
 
+int module_set_host_page_owned(u64 pfn, u64 nr_pages, bool owned)
+{
+	u64 size, phys;
+	int ret;
+
+	if (!pfn_range_is_valid(pfn, nr_pages))
+		return -EINVAL;
+
+	phys = hyp_pfn_to_phys(pfn);
+	size = nr_pages * PAGE_SIZE;
+
+	host_lock_component();
+
+	ret = ___host_check_page_state_range(phys, size,
+					     owned ? PKVM_PAGE_OWNED : PKVM_MODULE_OWNED_PAGE,
+					     HOST_CHECK_IS_MEMORY | HOST_CHECK_NULL_REFCNT);
+	if (ret)
+		goto unlock;
+
+	if (owned) {
+		for_each_hyp_page(page, phys, size)
+			set_host_state(page, PKVM_MODULE_OWNED_PAGE);
+	} else {
+		for_each_hyp_page(page, phys, size)
+			set_host_state(page, PKVM_PAGE_OWNED);
+	}
+
+unlock:
+	host_unlock_component();
+	return ret;
+}
+
 int hyp_pin_shared_mem(void *from, void *to)
 {
 	u64 cur, start = ALIGN_DOWN((u64)from, PAGE_SIZE);
@@ -2463,6 +2511,13 @@ static int ___pkvm_check_module_share_guest(struct pkvm_hyp_vm *vm, u64 phys, u6
 	ret = ___host_check_page_state_range(phys, size,
 					     PKVM_NOPAGE | PKVM_MODULE_OWNED_PAGE,
 					     HOST_CHECK_IS_MEMORY);
+	/*
+	 * module_set_host_page_owned() sets PKVM_MODULE_OWNED_PAGE without
+	 * PKVM_NOPAGE.
+	 */
+	if (ret == -EPERM)
+		ret = ___host_check_page_state_range(phys, size, PKVM_MODULE_OWNED_PAGE,
+						     HOST_CHECK_IS_MEMORY);
 	if (ret)
 		return ret;
 

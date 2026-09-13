@@ -20,6 +20,7 @@
   __alloc_pages_noprof
   __alloc_skb
   alloc_workqueue_noprof
+  all_vm_events
   alt_cb_patch_nops
   amba_bustype
   __amba_driver_register
@@ -71,6 +72,7 @@
   bitmap_to_arr32
   __bitmap_weight
   bitmap_zalloc
+  bit_wait
   __blk_alloc_disk
   blk_check_plugged
   blk_execute_rq_nowait
@@ -215,6 +217,30 @@
   __copy_overflow
   copy_page
   _copy_to_iter
+  coresight_alloc_device_name
+  coresight_barrier_pkt
+  coresight_claim_device
+  coresight_claim_device_unlocked
+  coresight_clear_self_claim_tag
+  coresight_disable_sysfs
+  coresight_disclaim_device
+  coresight_disclaim_device_unlocked
+  coresight_enable_sysfs
+  coresight_find_input_type
+  coresight_find_output_type
+  coresight_get_enable_clocks
+  coresight_get_platform_data
+  coresight_get_static_trace_id
+  coresight_init_driver
+  coresight_register
+  coresight_remove_driver
+  coresight_simple_show32
+  coresight_simple_show_pair
+  coresight_timeout
+  coresight_trace_id_get_static_system_id
+  coresight_trace_id_get_system_id
+  coresight_trace_id_put_system_id
+  coresight_unregister
   cpu_all_bits
   cpu_bit_bitmap
   cpufreq_cpu_get
@@ -1775,6 +1801,7 @@
   of_root
   of_usb_host_tpl_support
   oops_in_progress
+  out_of_line_wait_on_bit_lock
   __page_frag_alloc_align
   __page_frag_cache_drain
   page_frag_free
@@ -1849,6 +1876,7 @@
   pci_write_config_dword
   pci_write_config_word
   pcpu_alloc_noprof
+  pcpu_nr_pages
   percpu_counter_add_batch
   percpu_counter_batch
   __per_cpu_offset
@@ -2221,6 +2249,8 @@
   __seq_open_private
   seq_printf
   seq_putc
+  seq_put_decimal_ll
+  seq_put_decimal_ull_width
   __seq_puts
   seq_read
   seq_release
@@ -2549,8 +2579,11 @@
   __traceiter_android_rvh_set_user_nice_locked
   __traceiter_android_rvh_swap_read_folio_bdev_sync
   __traceiter_android_rvh_task_fits_cpu
+  __traceiter_android_rvh_try_alloc_pages_gfp
   __traceiter_android_rvh_ufs_reprogram_all_keys
   __traceiter_android_rvh_update_load_sum
+  __traceiter_android_rvh_vmscan_kswapd_done
+  __traceiter_android_rvh_vmscan_kswapd_wake
   __traceiter_android_trigger_vendor_lmk_kill
   __traceiter_android_vh_adjust_kvmalloc_flags
   __traceiter_android_vh_alter_futex_plist_add
@@ -2564,9 +2597,12 @@
   __traceiter_android_vh_dwc3_core_soft_reset
   __traceiter_android_vh_dwc3_xhci_soft_reset
   __traceiter_android_vh_ep_create_wakeup_source
+  __traceiter_android_vh_filemap_get_folio
   __traceiter_android_vh_free_one_page_flag_check
   __traceiter_android_vh_free_pages_prepare_init
   __traceiter_android_vh_ipi_stop
+  __traceiter_android_vh_mm_compaction_begin
+  __traceiter_android_vh_mm_compaction_end
   __traceiter_android_vh_mm_customize_longterm_pinnable
   __traceiter_android_vh_page_cache_ra_order_bypass
   __traceiter_android_vh_page_cache_readahead_start
@@ -2629,8 +2665,11 @@
   __tracepoint_android_rvh_set_user_nice_locked
   __tracepoint_android_rvh_swap_read_folio_bdev_sync
   __tracepoint_android_rvh_task_fits_cpu
+  __tracepoint_android_rvh_try_alloc_pages_gfp
   __tracepoint_android_rvh_ufs_reprogram_all_keys
   __tracepoint_android_rvh_update_load_sum
+  __tracepoint_android_rvh_vmscan_kswapd_done
+  __tracepoint_android_rvh_vmscan_kswapd_wake
   __tracepoint_android_trigger_vendor_lmk_kill
   __tracepoint_android_vh_adjust_kvmalloc_flags
   __tracepoint_android_vh_alter_futex_plist_add
@@ -2644,9 +2683,12 @@
   __tracepoint_android_vh_dwc3_core_soft_reset
   __tracepoint_android_vh_dwc3_xhci_soft_reset
   __tracepoint_android_vh_ep_create_wakeup_source
+  __tracepoint_android_vh_filemap_get_folio
   __tracepoint_android_vh_free_one_page_flag_check
   __tracepoint_android_vh_free_pages_prepare_init
   __tracepoint_android_vh_ipi_stop
+  __tracepoint_android_vh_mm_compaction_begin
+  __tracepoint_android_vh_mm_compaction_end
   __tracepoint_android_vh_mm_customize_longterm_pinnable
   __tracepoint_android_vh_page_cache_ra_order_bypass
   __tracepoint_android_vh_page_cache_readahead_start
@@ -2930,6 +2972,7 @@
   virtqueue_kick_prepare
   virtqueue_notify
   vmalloc_noprof
+  vmalloc_nr_pages
   vmalloc_to_page
   vmalloc_user_noprof
   vmap
@@ -2959,6 +3002,7 @@
   wait_for_completion_timeout
   wait_woken
   __wake_up
+  wake_up_bit
   __wake_up_locked
   wake_up_process
   wakeup_source_register

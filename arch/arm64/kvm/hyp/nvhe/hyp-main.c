@@ -218,7 +218,7 @@ static void handle_pvm_entry_sys64(struct pkvm_hyp_vcpu *hyp_vcpu)
 	/* Exceptions have priority on anything else */
 	if (vcpu_get_flag(host_vcpu, PENDING_EXCEPTION)) {
 		/* Exceptions caused by this should be undef exceptions. */
-		u32 esr = (ESR_ELx_EC_UNKNOWN << ESR_ELx_EC_SHIFT);
+		u32 esr = (ESR_ELx_EC_UNKNOWN << ESR_ELx_EC_SHIFT) | ESR_ELx_IL;
 
 		__vcpu_assign_sys_reg(&hyp_vcpu->vcpu, ESR_EL1, esr);
 		kvm_pend_exception(&hyp_vcpu->vcpu, EXCEPT_AA64_EL1_SYNC);

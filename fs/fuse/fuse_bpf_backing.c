@@ -1220,25 +1220,33 @@ int fuse_handle_backing(struct fuse_entry_bpf *feb, struct inode **backing_inode
 		/* backing inode/path are added in fuse_lookup_backing */
 		break;
 
-	case FUSE_ACTION_REMOVE:
-		iput(*backing_inode);
-		*backing_inode = NULL;
+	case FUSE_ACTION_REMOVE: {
+		struct inode *old_inode = NULL;
+
+		if (backing_inode)
+			old_inode = xchg(backing_inode, NULL);
+		iput(old_inode);
 		path_put(backing_path);
 		*backing_path = (struct path) { };
 		break;
+	}
 
 	case FUSE_ACTION_REPLACE: {
 		struct file *backing_file = feb->backing_file;
+		struct inode *new_inode;
+		struct inode *old_inode = NULL;
 
 		if (!backing_file)
 			return -EINVAL;
 		if (IS_ERR(backing_file))
 			return PTR_ERR(backing_file);
 
-		if (backing_inode)
-			iput(*backing_inode);
-		*backing_inode = backing_file->f_inode;
-		ihold(*backing_inode);
+		new_inode = backing_file->f_inode;
+		if (backing_inode) {
+			ihold(new_inode);
+			old_inode = xchg(backing_inode, new_inode);
+			iput(old_inode);
+		}
 
 		path_put(backing_path);
 		*backing_path = backing_file->f_path;

@@ -288,3 +288,4 @@
   sha256
   vfs_iter_read
   vfs_iter_write
+  wake_up_var
